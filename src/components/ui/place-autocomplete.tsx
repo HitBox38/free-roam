@@ -1,4 +1,3 @@
-"use client"
 
 import { RiMapPinLine, RiSearchLine } from "@remixicon/react"
 import * as React from "react"
@@ -74,7 +73,7 @@ interface PlaceSearchOptions {
 
 interface PlaceAutocompleteProps
     extends Omit<PlaceSearchOptions, "query">,
-        Omit<React.ComponentProps<"input">, "value" | "onChange"> {
+    Omit<React.ComponentProps<"input">, "value" | "onChange"> {
     debounceMs?: number
     value?: string
     defaultValue?: string

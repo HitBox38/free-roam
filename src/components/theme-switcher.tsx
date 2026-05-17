@@ -1,4 +1,3 @@
-"use client"
 
 import type { ThemePreference } from "@/stores/theme-store"
 import { buttonVariants } from "@/components/ui/button"
