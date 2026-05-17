@@ -1,21 +1,48 @@
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { ButtonGroup } from "@/components/ui/button-group"
+import "leaflet-draw/dist/leaflet.draw.css"
+import "leaflet.fullscreen/dist/Control.FullScreen.css"
+import "leaflet.markercluster/dist/MarkerCluster.css"
+import "leaflet.markercluster/dist/MarkerCluster.Default.css"
+import "leaflet/dist/leaflet.css"
+
+import type {} from "leaflet-draw"
+import type {} from "leaflet.markercluster"
 import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuLabel,
-    DropdownMenuRadioGroup,
-    DropdownMenuRadioItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+    RiAddLine,
+    RiArrowGoBackLine,
+    RiCircleLine,
+    RiDeleteBinLine,
+    RiFullscreenExitLine,
+    RiFullscreenLine,
+    RiLoader4Line,
+    RiMapPinLine,
+    RiNavigationLine,
+    RiPenNibLine,
+    RiPentagonLine,
+    RiRectangleLine,
+    RiRouteLine,
+    RiStackLine,
+    RiSubtractLine,
+} from "@remixicon/react"
 import {
-    PlaceAutocomplete,
-    type PlaceAutocompleteProps,
-} from "@/components/ui/place-autocomplete"
-import type { CheckboxItem } from "@radix-ui/react-dropdown-menu"
+    Suspense,
+    createContext,
+    lazy,
+    useContext,
+    useEffect,
+    useRef,
+    useState,
+} from "react"
+import { renderToString } from "react-dom/server"
+import { useMap, useMapEvents } from "react-leaflet"
+import type {
+    ComponentProps,
+    ComponentPropsWithoutRef,
+    ComponentType,
+    ReactNode,
+    Ref,
+    RefObject,
+} from "react"
+import type * as LeafletModule from "leaflet"
 import type {
     Circle,
     CircleMarker,
@@ -42,66 +69,47 @@ import type {
     TileLayer,
     Tooltip,
 } from "leaflet"
-import "leaflet-draw/dist/leaflet.draw.css"
-import "leaflet.fullscreen/dist/Control.FullScreen.css"
-import type {} from "leaflet.markercluster"
-import "leaflet.markercluster/dist/MarkerCluster.css"
-import "leaflet.markercluster/dist/MarkerCluster.Default.css"
-import "leaflet/dist/leaflet.css"
-import {
-    CircleIcon,
-    LayersIcon,
-    LoaderCircleIcon,
-    MapPinIcon,
-    MaximizeIcon,
-    MinimizeIcon,
-    MinusIcon,
-    NavigationIcon,
-    PenLineIcon,
-    PentagonIcon,
-    PlusIcon,
-    SquareIcon,
-    Trash2Icon,
-    Undo2Icon,
-    WaypointsIcon,
-} from "lucide-react"
-import { useTheme } from "next-themes"
-import React, {
-    Suspense,
-    createContext,
-    lazy,
-    useContext,
-    useEffect,
-    useRef,
-    useState,
-    type ComponentType,
-    type ReactNode,
-    type Ref,
-} from "react"
-import { renderToString } from "react-dom/server"
-import {
-    useMap,
-    useMapEvents,
-    type CircleMarkerProps,
-    type CircleProps,
-    type LayerGroupProps,
-    type MapContainerProps,
-    type MarkerProps,
-    type PolygonProps,
-    type PolylineProps,
-    type PopupProps,
-    type RectangleProps,
-    type TileLayerProps,
-    type TooltipProps,
+import type {
+    CircleMarkerProps,
+    CircleProps,
+    LayerGroupProps,
+    MapContainerProps,
+    MarkerProps,
+    PolygonProps,
+    PolylineProps,
+    PopupProps,
+    RectangleProps,
+    TileLayerProps,
+    TooltipProps,
 } from "react-leaflet"
 import type { MarkerClusterGroupProps } from "react-leaflet-markercluster"
+
+import type { PlaceAutocompleteProps } from "@/components/ui/place-autocomplete"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { ButtonGroup } from "@/components/ui/button-group"
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuGroup,
+    DropdownMenuLabel,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { PlaceAutocomplete } from "@/components/ui/place-autocomplete"
+import { cn } from "@/lib/utils"
+import { useResolvedTheme } from "@/stores/theme-store"
+
+type LeafletStatic = typeof LeafletModule
 
 function createLazyComponent<T extends ComponentType<any>>(
     factory: () => Promise<{ default: T }>
 ) {
     const LazyComponent = lazy(factory)
 
-    return (props: React.ComponentProps<T>) => {
+    return (props: ComponentProps<T>) => {
         const [isMounted, setIsMounted] = useState(false)
 
         useEffect(() => {
@@ -216,20 +224,20 @@ interface MapTileLayerOption {
     attribution?: string
 }
 
-interface MapLayerGroupOption
-    extends Pick<React.ComponentProps<typeof CheckboxItem>, "disabled"> {
+interface MapLayerGroupOption {
     name: string
+    disabled?: boolean
 }
 
 interface MapLayersContextType {
     registerTileLayer: (layer: MapTileLayerOption) => void
-    tileLayers: MapTileLayerOption[]
+    tileLayers: Array<MapTileLayerOption>
     selectedTileLayer: string
     setSelectedTileLayer: (name: string) => void
     registerLayerGroup: (layer: MapLayerGroupOption) => void
-    layerGroups: MapLayerGroupOption[]
-    activeLayerGroups: string[]
-    setActiveLayerGroups: (names: string[]) => void
+    layerGroups: Array<MapLayerGroupOption>
+    activeLayerGroups: Array<string>
+    setActiveLayerGroups: (names: Array<string>) => void
 }
 
 const MapLayersContext = createContext<MapLayersContextType | null>(null)
@@ -252,9 +260,9 @@ function MapTileLayer({
     ref?: Ref<TileLayer>
 }) {
     const map = useMap()
-    if (map.attributionControl) {
-        map.attributionControl.setPrefix("")
-    }
+    // Map sets attributionControl={false}, so this control is absent at runtime
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Leaflet types omit optional control when disabled
+    map.attributionControl?.setPrefix("")
 
     const context = useContext(MapLayersContext)
     const DEFAULT_URL =
@@ -262,7 +270,7 @@ function MapTileLayer({
     const DEFAULT_DARK_URL =
         "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
 
-    const { resolvedTheme } = useTheme()
+    const resolvedTheme = useResolvedTheme()
     const resolvedUrl =
         resolvedTheme === "dark"
             ? (darkUrl ?? url ?? DEFAULT_DARK_URL)
@@ -271,7 +279,7 @@ function MapTileLayer({
         resolvedTheme === "dark" && darkAttribution
             ? darkAttribution
             : (attribution ??
-              '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>')
+                '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>')
 
     useEffect(() => {
         if (context) {
@@ -281,7 +289,7 @@ function MapTileLayer({
                 attribution: resolvedAttribution,
             })
         }
-    }, [context, name, url, attribution])
+    }, [context, name, resolvedUrl, resolvedAttribution])
 
     if (context && context.selectedTileLayer !== name) {
         return null
@@ -346,17 +354,20 @@ function MapLayers({
     defaultTileLayer,
     defaultLayerGroups = [],
     ...props
-}: Omit<React.ComponentProps<typeof MapLayersContext.Provider>, "value"> & {
+}: Omit<ComponentProps<typeof MapLayersContext.Provider>, "value"> & {
     defaultTileLayer?: string
-    defaultLayerGroups?: string[]
+    defaultLayerGroups?: Array<string>
 }) {
-    const [tileLayers, setTileLayers] = useState<MapTileLayerOption[]>([])
+    const [tileLayers, setTileLayers] = useState<Array<MapTileLayerOption>>([])
     const [selectedTileLayer, setSelectedTileLayer] = useState<string>(
         defaultTileLayer || ""
     )
-    const [layerGroups, setLayerGroups] = useState<MapLayerGroupOption[]>([])
-    const [activeLayerGroups, setActiveLayerGroups] =
-        useState<string[]>(defaultLayerGroups)
+    const [layerGroups, setLayerGroups] = useState<Array<MapLayerGroupOption>>(
+        []
+    )
+    const [activeLayerGroups, setActiveLayerGroups] = useState<Array<string>>(
+        defaultLayerGroups
+    )
 
     function registerTileLayer(tileLayer: MapTileLayerOption) {
         setTileLayers((prevTileLayers) => {
@@ -394,7 +405,7 @@ function MapLayers({
         if (tileLayers.length > 0 && !selectedTileLayer) {
             const validDefaultValue =
                 defaultTileLayer &&
-                tileLayers.some((layer) => layer.name === defaultTileLayer)
+                    tileLayers.some((layer) => layer.name === defaultTileLayer)
                     ? defaultTileLayer
                     : tileLayers[0].name
             setSelectedTileLayer(validDefaultValue)
@@ -443,7 +454,7 @@ function MapLayersControl({
     position = "top-1 right-1",
     className,
     ...props
-}: React.ComponentProps<"button"> & {
+}: ComponentProps<"button"> & {
     tileLayersLabel?: string
     layerGroupsLabel?: string
     position?: string
@@ -483,14 +494,22 @@ function MapLayersControl({
 
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger render={<Button type="button" variant="secondary" size="icon-sm" aria-label="Select layers" title="Select layers" className={cn(
-                                    "absolute z-1000 border",
-                                    position,
-                                    className
-                                )} {...props} />}><LayersIcon /></DropdownMenuTrigger>
+            <DropdownMenuTrigger
+                aria-label="Select layers"
+                title="Select layers"
+                className={cn(
+                    buttonVariants({ variant: "secondary", size: "icon-sm" }),
+                    "absolute z-1000 border",
+                    position,
+                    className
+                )}
+                {...props}
+            >
+                <RiStackLine />
+            </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="z-1000">
                 {showTileLayersDropdown && (
-                    <>
+                    <DropdownMenuGroup>
                         <DropdownMenuLabel>{tileLayersLabel}</DropdownMenuLabel>
                         <DropdownMenuRadioGroup
                             value={selectedTileLayer}
@@ -503,13 +522,13 @@ function MapLayersControl({
                                 </DropdownMenuRadioItem>
                             ))}
                         </DropdownMenuRadioGroup>
-                    </>
+                    </DropdownMenuGroup>
                 )}
                 {showTileLayersDropdown && showLayerGroupsDropdown && (
                     <DropdownMenuSeparator />
                 )}
                 {showLayerGroupsDropdown && (
-                    <>
+                    <DropdownMenuGroup>
                         <DropdownMenuLabel>
                             {layerGroupsLabel}
                         </DropdownMenuLabel>
@@ -529,7 +548,7 @@ function MapLayersControl({
                                 {layerGroup.name}
                             </DropdownMenuCheckboxItem>
                         ))}
-                    </>
+                    </DropdownMenuGroup>
                 )}
             </DropdownMenuContent>
         </DropdownMenu>
@@ -537,7 +556,7 @@ function MapLayersControl({
 }
 
 function MapMarker({
-    icon = <MapPinIcon className="size-6" />,
+    icon = <RiMapPinLine className="size-6" />,
     iconAnchor = [12, 12],
     bgPos,
     popupAnchor,
@@ -587,12 +606,12 @@ function MapMarkerClusterGroup({
 
     const iconCreateFunction = icon
         ? (cluster: MarkerCluster) => {
-              const markerCount = cluster.getChildCount()
-              const iconNode = icon(markerCount)
-              return L.divIcon({
-                  html: renderToString(iconNode),
-              })
-          }
+            const markerCount = cluster.getChildCount()
+            const iconNode = icon(markerCount)
+            return L.divIcon({
+                html: renderToString(iconNode),
+            })
+        }
         : undefined
 
     return (
@@ -745,7 +764,7 @@ function MapZoomControl({
     position = "top-1 left-1",
     className,
     ...props
-}: React.ComponentProps<"div"> & { position?: string }) {
+}: ComponentProps<"div"> & { position?: string }) {
     const map = useMap()
     const [zoomLevel, setZoomLevel] = useState(map.getZoom())
 
@@ -770,7 +789,7 @@ function MapZoomControl({
                     className="border"
                     disabled={zoomLevel >= map.getMaxZoom()}
                     onClick={() => map.zoomIn()}>
-                    <PlusIcon />
+                    <RiAddLine />
                 </Button>
                 <Button
                     type="button"
@@ -781,7 +800,7 @@ function MapZoomControl({
                     className="border"
                     disabled={zoomLevel <= map.getMinZoom()}
                     onClick={() => map.zoomOut()}>
-                    <MinusIcon />
+                    <RiSubtractLine />
                 </Button>
             </ButtonGroup>
         </MapControlContainer>
@@ -792,7 +811,7 @@ function MapFullscreenControl({
     position = "top-1 right-1",
     className,
     ...props
-}: React.ComponentProps<"button"> & { position?: string }) {
+}: ComponentProps<"button"> & { position?: string }) {
     const map = useMap()
     const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -835,7 +854,7 @@ function MapFullscreenControl({
                 title={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
                 className="border"
                 {...props}>
-                {isFullscreen ? <MinimizeIcon /> : <MaximizeIcon />}
+                {isFullscreen ? <RiFullscreenExitLine /> : <RiFullscreenLine />}
             </Button>
         </MapControlContainer>
     )
@@ -857,7 +876,7 @@ function MapLocateControl({
     position = "right-1 bottom-1",
     className,
     ...props
-}: React.ComponentProps<"button"> &
+}: ComponentProps<"button"> &
     Pick<LocateOptions, "watch"> & {
         onLocationFound?: (location: LocationEvent) => void
         onLocationError?: (error: ErrorEvent) => void
@@ -869,10 +888,10 @@ function MapLocateControl({
     function startLocating() {
         setIsLocating(true)
         map.locate({ setView: true, maxZoom: map.getMaxZoom(), watch })
-        map.on("locationfound", (location: LocationEvent) => {
-            setLocation(location.latlng)
+        map.on("locationfound", (foundEvent: LocationEvent) => {
+            setLocation(foundEvent.latlng)
             setIsLocating(false)
-            onLocationFound?.(location)
+            onLocationFound?.(foundEvent)
         })
         map.on("locationerror", (error: ErrorEvent) => {
             setLocation(null)
@@ -903,22 +922,22 @@ function MapLocateControl({
                     isLocating
                         ? "Locating..."
                         : location
-                          ? "Stop tracking"
-                          : "Track location"
+                            ? "Stop tracking"
+                            : "Track location"
                 }
                 aria-label={
                     isLocating
                         ? "Locating..."
                         : location
-                          ? "Stop location tracking"
-                          : "Start location tracking"
+                            ? "Stop location tracking"
+                            : "Start location tracking"
                 }
                 className="border"
                 {...props}>
                 {isLocating ? (
-                    <LoaderCircleIcon className="animate-spin" />
+                    <RiLoader4Line className="animate-spin" />
                 ) : (
-                    <NavigationIcon />
+                    <RiNavigationLine />
                 )}
             </Button>
             {location && (
@@ -947,8 +966,8 @@ interface MapDrawContextType {
     readonly featureGroup: L.FeatureGroup | null
     activeMode: MapDrawMode
     setActiveMode: (mode: MapDrawMode) => void
-    readonly editControlRef: React.RefObject<EditToolbar.Edit | null>
-    readonly deleteControlRef: React.RefObject<EditToolbar.Delete | null>
+    readonly editControlRef: RefObject<EditToolbar.Edit | null>
+    readonly deleteControlRef: RefObject<EditToolbar.Delete | null>
     readonly layersCount: number
 }
 
@@ -963,7 +982,7 @@ function MapDrawControl({
     position = "bottom-1 left-1",
     className,
     ...props
-}: React.ComponentProps<"div"> & {
+}: ComponentProps<"div"> & {
     onLayersChange?: (layers: L.FeatureGroup) => void
     position?: string
 }) {
@@ -998,7 +1017,7 @@ function MapDrawControl({
     }
 
     useEffect(() => {
-        if (!L || !LeafletDraw || !map) return
+        if (!L || !LeafletDraw) return
 
         map.on(
             L.Draw.Event.CREATED,
@@ -1040,9 +1059,9 @@ function MapDrawShapeButton<T extends Draw.Feature>({
     createDrawTool,
     className,
     ...props
-}: React.ComponentProps<"button"> & {
+}: ComponentProps<"button"> & {
     drawMode: MapDrawShape
-    createDrawTool: (L: typeof import("leaflet"), map: DrawMap) => T
+    createDrawTool: (leaflet: LeafletStatic, map: DrawMap) => T
 }) {
     const drawContext = useMapDrawContext()
     if (!drawContext) {
@@ -1097,12 +1116,12 @@ function MapDrawMarker({ ...props }: DrawOptions.MarkerOptions) {
                     icon: L.divIcon({
                         className: "", // For fixing the moving bug when going in and out the edit mode
                         iconAnchor: [12, 12],
-                        html: renderToString(<MapPinIcon className="size-6" />),
+                        html: renderToString(<RiMapPinLine className="size-6" />),
                     }),
                     ...props,
                 })
             }>
-            <MapPinIcon />
+            <RiMapPinLine />
         </MapDrawShapeButton>
     )
 }
@@ -1128,9 +1147,9 @@ function MapDrawPolyline({
                 new L.Draw.Polyline(map, {
                     ...(mapDrawHandleIcon
                         ? {
-                              icon: mapDrawHandleIcon,
-                              touchIcon: mapDrawHandleIcon,
-                          }
+                            icon: mapDrawHandleIcon,
+                            touchIcon: mapDrawHandleIcon,
+                        }
                         : {}),
                     showLength,
                     drawError,
@@ -1138,7 +1157,7 @@ function MapDrawPolyline({
                     ...props,
                 })
             }>
-            <WaypointsIcon />
+            <RiRouteLine />
         </MapDrawShapeButton>
     )
 }
@@ -1162,7 +1181,7 @@ function MapDrawCircle({
                     ...props,
                 })
             }>
-            <CircleIcon />
+            <RiCircleLine />
         </MapDrawShapeButton>
     )
 }
@@ -1186,7 +1205,7 @@ function MapDrawRectangle({
                     ...props,
                 })
             }>
-            <SquareIcon />
+            <RiRectangleLine />
         </MapDrawShapeButton>
     )
 }
@@ -1211,16 +1230,16 @@ function MapDrawPolygon({
                 new L.Draw.Polygon(map, {
                     ...(mapDrawHandleIcon
                         ? {
-                              icon: mapDrawHandleIcon,
-                              touchIcon: mapDrawHandleIcon,
-                          }
+                            icon: mapDrawHandleIcon,
+                            touchIcon: mapDrawHandleIcon,
+                        }
                         : {}),
                     drawError,
                     shapeOptions,
                     ...props,
                 })
             }>
-            <PentagonIcon />
+            <RiPentagonLine />
         </MapDrawShapeButton>
     )
 }
@@ -1231,14 +1250,14 @@ function MapDrawActionButton<T extends EditToolbar.Edit | EditToolbar.Delete>({
     controlRef,
     className,
     ...props
-}: React.ComponentProps<"button"> & {
+}: ComponentProps<"button"> & {
     drawAction: MapDrawAction
     createDrawTool: (
-        L: typeof import("leaflet"),
+        leaflet: LeafletStatic,
         map: DrawMap,
-        featureGroup: L.FeatureGroup
+        featureGroup: FeatureGroup
     ) => T
-    controlRef: React.RefObject<T | null>
+    controlRef: RefObject<T | null>
 }) {
     const drawContext = useMapDrawContext()
     if (!drawContext)
@@ -1254,15 +1273,15 @@ function MapDrawActionButton<T extends EditToolbar.Edit | EditToolbar.Delete>({
 
     useEffect(() => {
         if (!L || !featureGroup || !isActive) {
-            controlRef.current?.disable?.()
+            controlRef.current?.disable()
             controlRef.current = null
             return
         }
         const control = createDrawTool(L, map as DrawMap, featureGroup)
-        control.enable?.()
+        control.enable()
         controlRef.current = control
         return () => {
-            control.disable?.()
+            control.disable()
             controlRef.current = null
         }
     }, [L, map, isActive, featureGroup, createDrawTool])
@@ -1331,14 +1350,14 @@ function MapDrawEdit({
         <MapDrawActionButton
             drawAction="edit"
             controlRef={drawContext.editControlRef}
-            createDrawTool={(L, map, featureGroup) =>
-                new L.EditToolbar.Edit(map, {
+            createDrawTool={(leaflet, map, featureGroup) =>
+                new leaflet.EditToolbar.Edit(map, {
                     featureGroup,
                     selectedPathOptions,
                     ...props,
                 })
             }>
-            <PenLineIcon />
+            <RiPenNibLine />
         </MapDrawActionButton>
     )
 }
@@ -1353,15 +1372,15 @@ function MapDrawDelete() {
         <MapDrawActionButton
             drawAction="delete"
             controlRef={drawContext.deleteControlRef}
-            createDrawTool={(L, map, featureGroup) =>
-                new L.EditToolbar.Delete(map, { featureGroup })
+            createDrawTool={(leaflet, map, featureGroup) =>
+                new leaflet.EditToolbar.Delete(map, { featureGroup })
             }>
-            <Trash2Icon />
+            <RiDeleteBinLine />
         </MapDrawActionButton>
     )
 }
 
-function MapDrawUndo({ className, ...props }: React.ComponentProps<"button">) {
+function MapDrawUndo({ className, ...props }: ComponentProps<"button">) {
     const drawContext = useMapDrawContext()
     if (!drawContext)
         throw new Error("MapDrawUndo must be used within MapDrawControl")
@@ -1397,7 +1416,7 @@ function MapDrawUndo({ className, ...props }: React.ComponentProps<"button">) {
             disabled={!isActive}
             className={cn("border", className)}
             {...props}>
-            <Undo2Icon />
+            <RiArrowGoBackLine />
         </Button>
     )
 }
@@ -1405,7 +1424,7 @@ function MapDrawUndo({ className, ...props }: React.ComponentProps<"button">) {
 function MapControlContainer({
     className,
     ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: ComponentPropsWithoutRef<"div">) {
     const { L } = useLeaflet()
     const containerRef = useRef<HTMLDivElement>(null)
 
@@ -1433,16 +1452,14 @@ function useMapDrawHandleIcon() {
     return L.divIcon({
         iconAnchor: [8, 8],
         html: renderToString(
-            <CircleIcon className="fill-primary stroke-primary size-4 transition-transform hover:scale-110" />
+            <RiCircleLine className="fill-primary stroke-primary size-4 transition-transform hover:scale-110" />
         ),
     })
 }
 
 function useLeaflet() {
-    const [L, setL] = useState<typeof import("leaflet") | null>(null)
-    const [LeafletDraw, setLeafletDraw] = useState<
-        typeof import("leaflet-draw") | null
-    >(null)
+    const [L, setL] = useState<LeafletStatic | null>(null)
+    const [LeafletDraw, setLeafletDraw] = useState<object | null>(null)
 
     useEffect(() => {
         async function loadLeaflet() {
@@ -1451,16 +1468,18 @@ function useLeaflet() {
             const leafletDraw = await import("leaflet-draw")
 
             const L_object = leaflet.default
-            if (L_object.Control && !L_object.Control.FullScreen) {
-                L_object.Control.FullScreen =
-                    leafletFullscreen.default || leafletFullscreen
-            }
+            const fullscreenControl = leafletFullscreen.default
+            Reflect.set(
+                L_object.Control,
+                "FullScreen",
+                fullscreenControl
+            )
 
             setLeafletDraw(leafletDraw)
             setL(L_object)
         }
 
-        if (L && LeafletDraw) return
+        if (L !== null && LeafletDraw !== null) return
         if (typeof window === "undefined") return
 
         loadLeaflet()

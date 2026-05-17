@@ -1,7 +1,11 @@
-import { cn } from "@/lib/utils"
 import { RiLoaderLine } from "@remixicon/react"
+import type { ComponentProps } from "react"
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+import { cn } from "@/lib/utils"
+
+type SpinnerProps = Omit<ComponentProps<typeof RiLoaderLine>, "children">
+
+function Spinner({ className, ...props }: SpinnerProps) {
   return (
     <RiLoaderLine role="status" aria-label="Loading" className={cn("size-4 animate-spin", className)} {...props} />
   )
