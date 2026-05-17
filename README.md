@@ -2,7 +2,9 @@
 
 A collaborative trip planning web app with real-time editing, map planning, calendar planning, activity tickets, labels, comments, attachments, and trip timeline visualization.
 
-The project is designed as a zero-budget MVP using free tiers and open/free services where possible.
+A **core experience** is **Figma-like live presence and cursors on the map**, so collaborators can see where others are looking and pointing in real time—implemented on top of a persistent WebSocket datastore with aggressive client-side throttling to stay within free-tier limits.
+
+The project is designed as a **zero-budget MVP** using free tiers and open/free services where possible.
 
 ---
 
@@ -30,7 +32,7 @@ Activities can include:
 
 The trip can be viewed as:
 
-- A map
+- A map (with **live multiplayer cursors/presence**)
 - A calendar/timeline
 - Eventually, additional list/board views
 
@@ -40,7 +42,7 @@ The trip can be viewed as:
 
 ### Map View
 
-The map view shows activities as markers.
+The map view shows activities as markers and supports **live collaborative cursors** (presence tied to map coordinates), throttled to protect infrastructure budgets.
 
 Planned map features:
 
@@ -52,6 +54,7 @@ Planned map features:
 - Show a timeline layer
 - Connect activities by calendar order
 - Open locations in third-party map apps
+- **Live presence**: other collaborators’ pointers/focus on the map surface
 
 The timeline layer connects activities using the order defined in the calendar view.
 
@@ -81,11 +84,13 @@ This project uses:
 - TanStack Router
 - TanStack Form
 - TanStack Hotkeys
-- Convex
+- **SpacetimeDB** (TypeScript server module: tables + reducers)
+- **Better Auth** (hosted in TanStack Start server API routes)
+- **UploadThing** (direct uploads; SpacetimeDB stores attachment metadata after success)
 - shadcn/ui
 - Tailwind CSS
 - shadcn-map / React Leaflet
-- Zustand
+- Zustand (local UI state only)
 - Vercel
 
 Possible supporting tools:
@@ -93,8 +98,7 @@ Possible supporting tools:
 - Leaflet
 - date-fns
 - Zod or Valibot
-- Convex Auth/Auth.js
-- Convex file storage or another free-tier upload provider
+- A small **free-tier serverless database** for Better Auth sessions/tables
 
 ---
 
@@ -102,22 +106,36 @@ Possible supporting tools:
 
 ### TanStack Start
 
-Used for the React application foundation, routing, server/client integration, and modern TypeScript-first development.
+Used for the React application foundation, routing, server/client integration, and **standard server API routes** for authentication and upload brokering.
 
-### Convex
+### SpacetimeDB
 
-Used as the backend and real-time source of truth.
+Used as the **realtime engine and source of truth** for:
 
-Convex is responsible for:
+- Durable trip data (trips, members, activities, labels, comments, history, attachment records)
+- Ephemeral collaboration data (map presence/cursors, lightweight typing indicators)
 
-- Database
-- Realtime queries
-- Mutations
-- Permissions
-- Comments
-- Activity history
-- Collaboration
-- Possibly file storage
+SpacetimeDB is a strong fit here because of its **persistent WebSocket connection**, **local caching**, and **very fast incremental updates**—ideal for **high-frequency** state like map pointers **when the client is strict about throttling**.
+
+**Important free-tier constraint (MainCloud):** plan around on the order of **~3,000,000 reducer (function) calls per month** on the free tier (confirm against current vendor documentation).
+
+**This means the browser must not spam reducers.** For map cursors, treat **~2 calls/second per user** as a hard upper bound and prefer less; only send while **moving** and while the map surface is **focused**. Never wire raw `mousemove` to reducers without distance thresholds and throttling—it's a budget foot-gun.
+
+### Better Auth
+
+Authentication runs **outside** SpacetimeDB via TanStack Start routes, backed by a basic serverless database for sessions.
+
+SpacetimeDB reducers are **not** a general HTTP runtime: they **cannot** do arbitrary network fetches, so OAuth/session persistence belongs in the web server layer. The app then connects to SpacetimeDB with an identity linked to the authenticated user.
+
+### UploadThing
+
+Uploads happen **outside** SpacetimeDB: the browser uploads directly to UploadThing, then calls a reducer to persist attachment metadata (URL, size, MIME, etc.).
+
+Enforce **strict** MVP limits, for example:
+
+- **Max ~5 MB per file**
+- **Hard cap on files per trip** (and per activity if needed)
+- MIME allowlists and clear UI errors when limits are hit
 
 ### shadcn/ui
 
@@ -136,8 +154,9 @@ Used only for local UI state, such as:
 - Map layer toggles
 - Local filters
 - Modal state
+- Local coalescing/throttle timers for pointer updates
 
-Server data should live in Convex, not Zustand.
+Collaborative/durable data should live in **SpacetimeDB subscriptions**, not Zustand.
 
 ---
 
@@ -146,6 +165,16 @@ Server data should live in Convex, not Zustand.
 The project should be possible to run as a small MVP with no paid services.
 
 This affects several product decisions.
+
+### SpacetimeDB reducer budget
+
+Even “small” apps can accidentally exhaust free tiers if the client emits too many mutations.
+
+Rules of thumb:
+
+- Throttle **all** high-frequency reducers, especially **map pointer** updates.
+- Prefer batching for bursty edits where reasonable.
+- Keep ephemeral rows small; clean up on disconnect.
 
 ### Maps
 
@@ -192,20 +221,12 @@ Direct export into a user's Google Maps saved list is not guaranteed and should 
 
 ### Attachments
 
-File storage is not truly unlimited for free.
+Use **UploadThing** with explicit guardrails:
 
-The MVP should start with one of these approaches:
-
-1. External attachment links only
-2. Convex file storage with strict limits
-3. Another free-tier upload provider with strict limits
-
-Recommended limits for MVP:
-
-- Max file size
-- Max files per activity
-- Max total storage per trip/user
-- Allowed MIME types
+- **~5 MB max per file** (adjust only with intention and documented tier impact)
+- **Limited files per trip**
+- Recommended MIME allowlists
+- Clear empty states explaining limits
 
 ---
 
@@ -288,6 +309,10 @@ Activity history records important changes, such as:
 - Activity deleted
 - Activity restored
 
+### Live map presence (ephemeral)
+
+Presence records are short-lived collaboration state (e.g., cursor lat/lng keyed by `connectionId`) stored in SpacetimeDB for realtime sync, not meant to be long-term archival data.
+
 ---
 
 ## Suggested Activity Time Model
@@ -354,14 +379,12 @@ Exact structure may change as the app evolves.
 │   ├── stores/
 │   ├── utils/
 │   └── styles/
-├── convex/
-│   ├── schema.ts
-│   ├── trips.ts
-│   ├── activities.ts
-│   ├── comments.ts
-│   ├── labels.ts
-│   ├── attachments.ts
-│   └── history.ts
+├── spacetime/                 # SpacetimeDB TypeScript server module (name may vary)
+│   ├── src/
+│   │   ├── tables.ts          # table definitions (conceptual)
+│   │   ├── reducers/          # domain mutations + authz checks
+│   │   └── lib/
+│   └── ...
 ├── public/
 ├── AGENTS.md
 └── README.md
@@ -373,7 +396,7 @@ Exact structure may change as the app evolves.
 
 ### Phase 1: Core MVP
 
-- User authentication
+- User authentication (Better Auth)
 - Create trip
 - Edit trip
 - Invite collaborators
@@ -388,17 +411,17 @@ Exact structure may change as the app evolves.
 - Show activities on map
 - Show activities in calendar/list view
 - Add labels
-- Basic permissions
+- Basic permissions (server-enforced in reducers)
 
 ### Phase 2: Collaboration
 
-- Realtime activity updates
+- Realtime updates via SpacetimeDB
 - Comments
 - Threaded comments
 - Activity history
 - Optimistic UI
-- Basic presence indicators
-- User editing indicators
+- **Live map presence and multiplayer cursors** (throttled)
+- User typing/editing indicators (low frequency)
 
 ### Phase 3: Map Improvements
 
@@ -414,11 +437,9 @@ Exact structure may change as the app evolves.
 ### Phase 4: Attachments
 
 - External attachment links
-- Image upload
-- Document upload
+- UploadThing image/document upload
 - Attachment previews
-- File size limits
-- Storage limits
+- **5 MB/file** and **per-trip file count** limits (MVP defaults)
 
 ### Phase 5: Export
 
@@ -455,14 +476,14 @@ The MVP collaboration model should be simple and reliable.
 
 Recommended approach:
 
-- Convex realtime queries for live updates
-- Field-level mutations
+- SpacetimeDB subscriptions for live reads
+- Field-level reducers for writes
 - Optimistic UI where useful
 - Last-write-wins for simple conflicts
 - Activity history for accountability
-- Presence later
+- **Live map cursors** with strict client-side throttling and focus gating
 
-The MVP should not attempt full Figma-style CRDT editing unless it becomes necessary.
+The MVP should not attempt full Figma-style CRDT editing for every field unless it becomes necessary.
 
 ---
 
@@ -488,41 +509,43 @@ Possible permissions:
 | Comment         | Yes   | Yes    | Maybe  |
 | View history    | Yes   | Yes    | Yes    |
 
-This can be adjusted as the product evolves.
+This can be adjusted as the product evolves. **Authoritative checks belong in SpacetimeDB reducers.**
 
 ---
 
 ## Development
 
+This repository uses [Bun](https://bun.sh) as the package manager (`bun install`, `bun run <script>`).
+
 Install dependencies:
 
 ```bash
-pnpm install
+bun install
 ```
 
 Start the development server:
 
 ```bash
-pnpm dev
+bun run dev
 ```
 
-Start Convex locally or connect to Convex dev:
+Run the SpacetimeDB module locally (exact command depends on final SpacetimeDB tooling in this repo), for example:
 
 ```bash
-pnpm convex dev
+bun run spacetime dev
 ```
 
 Build the app:
 
 ```bash
-pnpm build
+bun run build
 ```
 
 Run checks:
 
 ```bash
-pnpm lint
-pnpm typecheck
+bun run lint
+bun run typecheck
 ```
 
 These commands may need to be adjusted depending on the final package scripts.
@@ -531,23 +554,29 @@ These commands may need to be adjusted depending on the final package scripts.
 
 ## Environment Variables
 
-The exact environment variables depend on the selected auth and deployment setup.
+The exact environment variables depend on auth, SpacetimeDB hosting, and UploadThing configuration.
 
 Expected categories:
 
 ```text
-CONVEX_DEPLOYMENT=
-VITE_CONVEX_URL=
-AUTH_SECRET=
-AUTH_URL=
+# SpacetimeDB (example names — align with SDK/hosting)
+SPACETIME_MODULE_NAME=
+SPACETIME_SERVER_URL=
+
+# Better Auth / TanStack Start server
+DATABASE_URL=
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=
+
+# UploadThing
+UPLOADTHING_SECRET=
+UPLOADTHING_APP_ID=
 ```
 
 Additional variables may be needed for:
 
-- Auth provider
-- Upload provider
-- Geocoding provider
 - Map tile provider
+- Geocoding provider
 
 Do not commit secrets to the repository.
 
@@ -563,14 +592,16 @@ Do not commit secrets to the repository.
 - Users should understand the difference between exact time and manual order.
 - Export should use open formats.
 - The app should remain usable on a zero-dollar budget for small-scale MVP usage.
+- **Live cursors must be implemented with extreme reducer thriftiness.**
 
 ---
 
 ## Known Constraints
 
+- **SpacetimeDB MainCloud free tier reducer/monthly limits** (treat pointer updates as a scarce resource).
 - Free map tiles may have usage limits.
 - Free geocoding may have rate limits.
-- File storage is limited on free tiers.
+- UploadThing and any object storage still require strict product limits.
 - Google Maps Platform usually requires billing.
 - Direct Google Maps saved-list export may not be possible.
 - Real-time collaboration can create edit conflicts.
@@ -586,10 +617,11 @@ The first goal is to build a working collaborative MVP:
 2. Add activities.
 3. See activities on a map.
 4. See activities in calendar order.
-5. Edit activities collaboratively.
+5. Edit activities collaboratively via SpacetimeDB.
 6. Add labels and comments.
 7. Show a map timeline connecting the ordered activities.
-8. Export trip data in open formats.
+8. Show **live map presence/cursors** without blowing free-tier reducer budgets.
+9. Export trip data in open formats.
 
 Once the MVP works, the project can expand into stronger collaboration, better map search, richer attachments, and more export options.
 

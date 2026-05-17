@@ -4,6 +4,8 @@ This project is a collaborative trip planning web app.
 
 The goal is to let users plan trips together in real time, with a workflow that feels inspired by tools like Figma, Monday, Jira, ClickUp, Asana, and calendar/map planning apps.
 
+A **core product pillar** is **Figma-like live presence and cursors on the map**: collaborators should see each other’s attention on the map surface (pointers, focus, lightweight “who is where” signals), not only static data updates.
+
 Users can create trips, invite collaborators, and add activities/events to a shared trip board. Each activity behaves like a rich ticket/card and can contain location data, dates, optional time, labels, descriptions, comments, attachments, and history.
 
 The app has two primary planning views:
@@ -13,13 +15,14 @@ The app has two primary planning views:
    - Supports selecting and editing activities.
    - Supports a timeline layer that connects activities in trip order.
    - Uses Leaflet via a shadcn-like map component.
+   - Supports **live multiplayer cursors and presence** tied to map coordinates.
 
 2. **Calendar / Timeline View**
    - Shows activities grouped by date.
    - Supports exact times or manual ordering within a day.
    - Defines the ordering used by the map timeline layer.
 
-The project is intended to work as a zero-budget MVP using free tiers and open/free services wherever possible.
+The project is intended to work as a **zero-budget MVP** using free tiers and open/free services wherever possible.
 
 ---
 
@@ -48,13 +51,13 @@ Each activity should support:
 - Edit/delete actions
 - Activity history/audit log
 
-Users should be able to collaboratively edit the trip in real time.
+Users should be able to collaboratively edit the trip in real time, with **low-latency map presence** suitable for high-frequency pointer motion when throttled responsibly (see free-tier constraints below).
 
 ---
 
 ## Important Product Constraints
 
-This project should be designed around a zero-dollar budget.
+This project should be designed around a **zero-dollar budget**.
 
 That means:
 
@@ -63,9 +66,10 @@ That means:
 - Prefer OpenStreetMap/Leaflet-based maps.
 - Prefer free-tier services.
 - Keep storage usage limited.
-- Design uploads with strict limits.
+- Design uploads with **strict** limits (size, count per trip, MIME allowlists).
 - Prefer generated third-party map links over direct paid integrations.
 - Avoid promising direct export into Google Maps saved lists unless supported by an official free API.
+- **Respect SpacetimeDB MainCloud free-tier reducer budgets** (see below). A careless cursor loop can burn the monthly allowance in hours.
 
 Direct Google Maps Platform usage should not be introduced unless explicitly requested and documented.
 
@@ -81,41 +85,39 @@ Primary stack:
 - TanStack Router
 - TanStack Form
 - TanStack Hotkeys
-- Convex
+- **SpacetimeDB** (TypeScript server module for schema, tables, and reducers)
+- **Better Auth** (session-based auth via TanStack Start server API routes)
+- **UploadThing** (hosted uploads; metadata recorded in SpacetimeDB after success)
 - shadcn/ui
 - Tailwind CSS
 - shadcn-map / React Leaflet
-- Zustand
+- Zustand (local UI state only)
 - Vercel
 
-Likely supporting libraries:
+Supporting / adjacent:
 
 - Leaflet
 - date-fns or similar date utilities
 - Zod or Valibot for validation
-- Auth provider compatible with Convex
-- Convex file storage or a free-tier upload provider
+- A **small free-tier serverless database** for Better Auth session/account tables (outside SpacetimeDB)
 
 ---
 
 ## Architecture Principles
 
-### 1. Convex is the source of truth
+### 1. SpacetimeDB is the source of truth (durable + ephemeral)
 
-Use Convex for:
+**SpacetimeDB** holds:
 
-- Trips
-- Trip members
-- Activities
-- Comments
-- Threads
-- Labels
-- Attachments metadata
-- History/audit log
-- Real-time collaboration
-- Permissions checks
+- **Durable domain data**: trips, membership, activities, labels, comments/threads, attachment metadata, activity history, permissions-sensitive reads/writes enforced in reducers.
+- **Ephemeral collaboration state**: live map presence, cursor positions, lightweight typing/editing indicators, connection-scoped rows that can expire or be replaced frequently.
 
-Client-side state managers like Zustand should only be used for local UI state, such as:
+**Why SpacetimeDB (especially for the map):**
+
+- Persistent **WebSocket** connection and **local caching** make the UI feel instant for collaborative planning.
+- The engine is a strong fit for **high-frequency** state—**when the client is disciplined**—such as map pointer tracking and presence updates.
+
+Client-side state managers like Zustand should only be used for **local UI state**, such as:
 
 - Active panel
 - Selected activity ID
@@ -124,42 +126,90 @@ Client-side state managers like Zustand should only be used for local UI state, 
 - Temporary draft state
 - Local filters/sorting
 - Unsaved UI preferences
+- **Client-side throttle/coalescing state for pointer updates** (the server must still receive bounded traffic)
 
-Do not duplicate server-owned Convex state in Zustand unless there is a clear reason.
+Do not duplicate SpacetimeDB-owned state in Zustand unless there is a clear reason (e.g., purely local gesture state).
 
 ---
 
-### 2. Real-time collaboration should be practical, not over-engineered
+### 2. Better Auth lives outside SpacetimeDB (identity → database session)
 
-The MVP does not need full Figma-style CRDT editing.
+**Better Auth** runs in **TanStack Start’s standard server API routes**, backed by a **basic free-tier serverless database** for sessions (and any auth tables Better Auth requires).
+
+Flow (conceptual):
+
+1. User authenticates via Better Auth on the web server.
+2. The app establishes authorized access to SpacetimeDB using an identity derived from that session (token exchange, signed connection parameters, or equivalent—implementation detail), so reducers can attribute actions to the correct user.
+
+SpacetimeDB **reducers are pure with respect to the outside world**: they **cannot** perform arbitrary network fetches (no calling OAuth providers, no HTTP to UploadThing, etc.). That is why **auth verification and session persistence live outside** the database module.
+
+---
+
+### 3. UploadThing lives outside SpacetimeDB (upload → reducer logs metadata)
+
+**UploadThing** handles **direct browser-to-storage uploads**.
+
+Flow (conceptual):
+
+1. Client obtains upload authorization from the TanStack Start server route (or UploadThing’s client flow, as configured).
+2. File bytes go **directly** to UploadThing (not through SpacetimeDB).
+3. On success, the client calls a **SpacetimeDB reducer** with the resulting URL/metadata to create/update `activityAttachments` (or similar) under trip permission checks.
+
+Hard product constraints (MVP defaults):
+
+- **Max ~5 MB per file** (tune down if needed; never silently raise without revisiting free tier).
+- **Hard cap on files per trip** (and per activity if needed).
+- Strict MIME allowlists and virus/abuse considerations as the product matures.
+
+---
+
+### 4. Free-tier safety: reducer budget and pointer spam
+
+**SpacetimeDB MainCloud (free tier) is billed in practice by work done—think in terms of reducer invocations.** A published guideline for planning is on the order of **~3,000,000 reducer calls per month** on the free tier (verify against current vendor docs during implementation).
+
+**Strong warnings (non-negotiable for agents and contributors):**
+
+- **The client MUST aggressively throttle map pointer / presence updates.**
+- Treat **~2 reducer calls per second per active user** as an upper bound for pointer motion, and prefer **less**.
+- Send updates **only while the map is focused** and the user is **actually moving** the pointer (suppress idle hover noise; use distance thresholds; coalesce bursts).
+- Never tie `mousemove` events 1:1 to reducers without throttling—this can exhaust the monthly budget quickly at scale.
+- Presence rows should be small; prefer periodic heartbeat at low frequency separate from pointer updates if needed.
+
+Also throttle non-pointer reducers where reasonable (typing indicators, batched activity edits).
+
+---
+
+### 5. Real-time collaboration should be practical, not over-engineered
+
+The MVP does not need full Figma-style CRDT editing for every field.
 
 Acceptable MVP behavior:
 
-- Field-level updates.
+- Field-level updates via reducers.
 - Optimistic UI where reasonable.
 - Last-write-wins for simple conflicts.
-- Activity history records all changes.
-- Presence indicators can be added later.
+- Activity history records important changes.
+- **Live map presence/cursors** as a first-class feature, implemented with strict client throttling.
 
 Avoid implementing complex CRDT/OT systems unless specifically requested.
 
 ---
 
-### 3. Activities are ticket-like objects
+### 6. Activities are ticket-like objects
 
 Activities should be treated as rich editable records, similar to tickets/cards in tools like Jira, Monday, ClickUp, or Asana.
 
 When editing activities:
 
-- Keep mutations small and focused.
+- Keep reducers small and focused.
 - Record important changes in the activity history.
 - Prefer soft delete where useful.
-- Validate permissions on the server.
-- Validate input both client-side and server-side.
+- Validate permissions **inside reducers** (and validate input server-side there).
+- Validate input client-side too for UX.
 
 ---
 
-### 4. Location handling should be provider-agnostic
+### 7. Location handling should be provider-agnostic
 
 Do not tightly couple activities to Google Maps.
 
@@ -190,7 +240,7 @@ https://www.google.com/maps/search/?api=1&query=Eiffel%20Tower
 
 ---
 
-### 5. Calendar order powers the map timeline
+### 8. Calendar order powers the map timeline
 
 The map timeline layer should connect activities based on the order defined in the calendar/timeline view.
 
@@ -205,39 +255,63 @@ Activities without coordinates should be skipped in the map polyline but should 
 
 ---
 
-## Suggested Data Model
+## SpacetimeDB Data Model (Conceptual)
 
-These are conceptual models. Adapt them to Convex schema syntax as the app evolves.
+These are **conceptual** SpacetimeDB tables and reducer responsibilities. Adapt to exact SpacetimeDB TypeScript module APIs as the app evolves.
 
-### trips
+### Design notes
+
+- Prefer explicit foreign keys as IDs (`u64`/`bigint` style) or stable string IDs—pick one scheme and stay consistent.
+- **Ephemeral tables** should be safe to prune by time or disconnect handlers (implement cleanup reducers scheduled or triggered on session end as supported).
+- **Reducers** implement all domain mutations and authorization checks.
+- **Subscriptions/queries** power realtime UI; client SDK handles caching/reconnect.
+
+### Durable tables (examples)
+
+**`users`** (Spacetime-side profile linked to Better Auth user id)
+
+```ts
+// Conceptual columns
+{
+  userId: string; // stable id from Better Auth / your auth subject
+  displayName: string;
+  imageUrl?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+```
+
+**`trips`**
 
 ```ts
 {
+  tripId: bigint;
   title: string;
   description?: string;
-  ownerId: Id<"users">;
+  ownerUserId: string;
   createdAt: number;
   updatedAt: number;
   deletedAt?: number;
 }
 ```
 
-### tripMembers
+**`tripMembers`**
 
 ```ts
 {
-  tripId: Id<"trips">;
-  userId: Id<"users">;
+  tripId: bigint;
+  userId: string;
   role: "owner" | "editor" | "viewer";
   createdAt: number;
 }
 ```
 
-### activities
+**`activities`**
 
 ```ts
 {
-  tripId: Id<"trips">;
+  activityId: bigint;
+  tripId: bigint;
 
   name: string;
   description?: string;
@@ -255,20 +329,19 @@ These are conceptual models. Adapt them to Convex schema syntax as the app evolv
   time?: string; // HH:mm
   order?: number;
 
-  labelIds?: Id<"labels">[];
-
-  createdBy: Id<"users">;
+  createdBy: string;
   createdAt: number;
   updatedAt: number;
   deletedAt?: number;
 }
 ```
 
-### labels
+**`labels`**
 
 ```ts
 {
-  tripId: Id<"trips">;
+  labelId: bigint;
+  tripId: bigint;
   name: string;
   color: string;
   createdAt: number;
@@ -276,13 +349,23 @@ These are conceptual models. Adapt them to Convex schema syntax as the app evolv
 }
 ```
 
-### activityComments
+**`activityLabels`** (join)
 
 ```ts
 {
-  activityId: Id<"activities">;
-  parentCommentId?: Id<"activityComments">;
-  userId: Id<"users">;
+  activityId: bigint;
+  labelId: bigint;
+}
+```
+
+**`activityComments`**
+
+```ts
+{
+  commentId: bigint;
+  activityId: bigint;
+  parentCommentId?: bigint;
+  userId: string;
   body: string;
   createdAt: number;
   updatedAt?: number;
@@ -290,29 +373,30 @@ These are conceptual models. Adapt them to Convex schema syntax as the app evolv
 }
 ```
 
-### activityAttachments
+**`activityAttachments`**
 
 ```ts
 {
-  activityId: Id<"activities">;
+  attachmentId: bigint;
+  activityId: bigint;
   type: "image" | "document" | "link";
   name: string;
-  url?: string;
-  storageId?: string;
+  url?: string; // UploadThing URL after successful upload
   size?: number;
   mimeType?: string;
-  createdBy: Id<"users">;
+  createdBy: string;
   createdAt: number;
   deletedAt?: number;
 }
 ```
 
-### activityHistory
+**`activityHistory`**
 
 ```ts
 {
-  activityId: Id<"activities">;
-  userId: Id<"users">;
+  historyId: bigint;
+  activityId: bigint;
+  userId: string;
   action:
     | "created"
     | "updated"
@@ -329,12 +413,55 @@ These are conceptual models. Adapt them to Convex schema syntax as the app evolv
     | "commented"
     | "deleted"
     | "restored";
-
-  before?: unknown;
-  after?: unknown;
+  beforeJson?: string;
+  afterJson?: string;
   createdAt: number;
 }
 ```
+
+### Ephemeral tables (examples)
+
+**`mapPresence`** (per live connection / per trip)
+
+```ts
+{
+  connectionId: string; // unique per websocket/session connection
+  tripId: bigint;
+  userId: string;
+  lat: number;
+  lng: number;
+  updatedAt: number;
+  // optional: cursorUiState, color, viewport bounds, etc. (keep tiny)
+}
+```
+
+**`typingIndicators`** (optional; keep very low frequency)
+
+```ts
+{
+  connectionId: string;
+  tripId: bigint;
+  userId: string;
+  targetType: "activity" | "trip" | "comment";
+  targetId: string;
+  updatedAt: number;
+}
+```
+
+### Reducers (examples)
+
+Implement as focused operations, e.g.:
+
+- `create_trip`, `invite_member`, `revoke_member`
+- `create_activity`, `update_activity_fields`, `soft_delete_activity`, `restore_activity`
+- `reorder_activity_within_day`
+- `add_comment`, `edit_comment`, `soft_delete_comment`
+- `add_label`, `remove_label`
+- `register_uploaded_attachment` (**called only after UploadThing success**)
+- `upsert_map_presence` (**throttled heavily on the client**)
+- `clear_map_presence_on_disconnect` (as appropriate)
+
+**Reminder:** reducers cannot call external HTTP services; any OAuth, webhooks, or upload broker logic stays in TanStack Start routes.
 
 ---
 
@@ -344,7 +471,7 @@ These are conceptual models. Adapt them to Convex schema syntax as the app evolv
 
 Build the foundation:
 
-- Authentication
+- Authentication (Better Auth)
 - Create trips
 - View trips
 - Invite/manage collaborators
@@ -356,7 +483,7 @@ Build the foundation:
 - Map view with markers
 - Calendar/list view
 - Labels/tags
-- Basic permissions
+- Basic permissions (enforced in reducers)
 
 ---
 
@@ -364,13 +491,13 @@ Build the foundation:
 
 Add collaborative features:
 
-- Real-time Convex updates
-- Optimistic edits
+- Realtime SpacetimeDB subscriptions for live data
+- Optimistic edits where safe
 - Comments
 - Threaded replies
 - Activity history/audit log
-- Basic presence indicators
-- "User is editing" indicators
+- **Live map presence and multiplayer cursors** (with strict throttling)
+- Lightweight typing/editing indicators (low frequency)
 
 ---
 
@@ -398,8 +525,7 @@ Improve location planning:
 Add attachments carefully due to zero-budget constraints:
 
 - External links first
-- Image uploads with strict size limits
-- Document uploads with strict size limits
+- UploadThing uploads with **strict** caps (size, count, MIME)
 - Attachment previews where reasonable
 - Storage usage limits per trip/user
 
@@ -427,13 +553,12 @@ Do not claim direct export into Google Maps saved lists unless a reliable offici
 - Use TypeScript everywhere.
 - Avoid `any` unless there is a clear reason.
 - Prefer explicit types for exported functions and shared utilities.
-- Keep shared types in dedicated files when reused across app/Convex boundaries.
+- Keep shared types in dedicated files when reused across app/SpacetimeDB module boundaries.
 
 ### React
 
 - Prefer small focused components.
-- Keep server data in Convex hooks.
-- Keep local UI-only state in Zustand or component state.
+- Keep collaborative/durable data in **SpacetimeDB client subscriptions**; keep local UI-only state in Zustand or component state.
 - Avoid deeply nested prop chains when a local store or route context is clearer.
 - Use controlled forms with TanStack Form where appropriate.
 
@@ -444,14 +569,21 @@ Do not claim direct export into Google Maps saved lists unless a reliable offici
 - Keep styling consistent with shadcn patterns.
 - Do not introduce unrelated component libraries unless necessary.
 
-### Convex
+### SpacetimeDB module (server)
 
-- Validate authorization in every query/mutation that accesses user-owned or trip-owned data.
+- Validate authorization in **every reducer** that mutates or exposes sensitive derived state.
 - Do not rely only on client-side permission checks.
-- Add useful indexes for tripId, activityId, userId, and date-based queries.
-- Keep mutations focused.
+- Add useful indexes for `tripId`, `activityId`, `userId`, and date-based access patterns as supported.
+- Keep reducers focused; avoid “god reducers.”
 - Record activity history for meaningful edits.
 - Soft delete important user content where appropriate.
+- Remember: **no arbitrary network I/O** inside reducers.
+
+### TanStack Start server routes
+
+- Implement Better Auth routes with standard patterns for the stack.
+- Keep secrets server-side.
+- Broker any non-SpacetimeDB integration here (OAuth callbacks, upload session creation, etc.).
 
 ### Maps
 
@@ -460,6 +592,7 @@ Do not claim direct export into Google Maps saved lists unless a reliable offici
 - Avoid hard dependencies on paid map providers.
 - Make external map providers pluggable.
 - Always consider attribution requirements for tile/geocoding providers.
+- **Instrument and throttle** pointer-driven reducer traffic.
 
 ### Forms
 
@@ -479,6 +612,7 @@ Do not claim direct export into Google Maps saved lists unless a reliable offici
   - Exact time
   - Manual order
 - Map and calendar should stay in sync.
+- **Live cursors should feel helpful, not noisy**—only show meaningful motion and focus.
 - Activity history should be understandable by non-technical users.
 - Empty states should guide the user.
 - Avoid destructive actions without confirmation.
@@ -491,11 +625,11 @@ Do not claim direct export into Google Maps saved lists unless a reliable offici
 Preferred choices for MVP:
 
 - Hosting: Vercel free tier
-- Backend/database/realtime: Convex free tier
+- Realtime + durable collaborative state: **SpacetimeDB** (MainCloud free tier with strict reducer discipline)
 - Maps: Leaflet + OpenStreetMap-compatible tiles
 - Geocoding: manual pin first, free/free-tier geocoder later
-- Files: external links first, uploads later
-- Auth: Convex Auth/Auth.js/free-tier auth provider
+- Files: **UploadThing** with aggressive limits
+- Auth: **Better Auth** + free-tier serverless DB for sessions
 
 Avoid:
 
@@ -504,19 +638,21 @@ Avoid:
 - Heavy tile usage
 - Expensive background processing
 - Vendor lock-in around one map provider
+- Unbounded upload counts or sizes
 
 ---
 
 ## Things To Be Careful About
 
+- **SpacetimeDB free-tier reducer limits** and accidental “mousemove → reducer” loops.
 - Google Maps APIs often require billing.
 - OpenStreetMap public tile servers have usage policies.
 - Free geocoding APIs have rate limits.
-- File storage can become expensive.
+- File storage can become expensive—even on UploadThing, abuse or large objects are a risk.
 - Real-time collaboration can cause conflicts.
 - Permission bugs can expose private trips.
 - Direct export to Google Maps lists may not be officially supported.
-- Attachments need size and type validation.
+- Attachments need size, count, and type validation.
 
 ---
 
@@ -527,12 +663,13 @@ For any meaningful feature:
 - It works in the UI.
 - It is typed.
 - It validates user input.
-- It checks permissions server-side.
+- It checks permissions **in SpacetimeDB reducers** (and uses Better Auth appropriately on the server for identity).
 - It handles loading and error states.
-- It works with real-time updates where applicable.
+- It works with realtime updates where applicable.
 - It does not introduce paid dependencies by default.
 - It follows existing UI patterns.
 - It is documented if it adds architectural complexity.
+- If it touches map presence, it includes **explicit throttling/focus gating** and does not risk blowing reducer budgets.
 
 ---
 
@@ -544,9 +681,10 @@ When working on this project:
 2. Prefer simple, maintainable solutions.
 3. Do not introduce paid services without clearly explaining why.
 4. Do not hard-code Google Maps as the only map provider.
-5. Keep Convex as the source of truth.
+5. Keep **SpacetimeDB** as the source of truth for collaborative domain state and ephemeral presence **without** expecting reducers to call external networks.
 6. Use Zustand only for local UI state.
 7. Keep map, calendar, and activity data models aligned.
 8. Add activity history for meaningful activity changes.
-9. Design for collaboration, but avoid unnecessary CRDT complexity.
+9. Treat **live map cursors/presence** as a core feature and a **budget-sensitive** subsystem.
 10. Ask for clarification before making major product or architecture changes.
+11. Use **Bun** for installs and scripts (`bun install`, `bun run dev`, `bun run lint`, etc.); do not assume pnpm or npm unless the repo explicitly documents otherwise.
