@@ -9,38 +9,128 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedTripsRouteImport } from './routes/_authenticated/trips'
+import { Route as ApiSpacetimeTokenRouteImport } from './routes/api/spacetime/token'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AuthenticatedTripsTripIdRouteImport } from './routes/_authenticated/trips/$tripId'
 
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedTripsRoute = AuthenticatedTripsRouteImport.update({
+  id: '/trips',
+  path: '/trips',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiSpacetimeTokenRoute = ApiSpacetimeTokenRouteImport.update({
+  id: '/api/spacetime/token',
+  path: '/api/spacetime/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedTripsTripIdRoute =
+  AuthenticatedTripsTripIdRouteImport.update({
+    id: '/$tripId',
+    path: '/$tripId',
+    getParentRoute: () => AuthenticatedTripsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
+  '/trips': typeof AuthenticatedTripsRouteWithChildren
+  '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/spacetime/token': typeof ApiSpacetimeTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/sign-in': typeof SignInRoute
+  '/trips': typeof AuthenticatedTripsRouteWithChildren
+  '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/spacetime/token': typeof ApiSpacetimeTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/sign-in': typeof SignInRoute
+  '/_authenticated/trips': typeof AuthenticatedTripsRouteWithChildren
+  '/_authenticated/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/spacetime/token': typeof ApiSpacetimeTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/sign-in'
+    | '/trips'
+    | '/trips/$tripId'
+    | '/api/auth/$'
+    | '/api/spacetime/token'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/sign-in'
+    | '/trips'
+    | '/trips/$tripId'
+    | '/api/auth/$'
+    | '/api/spacetime/token'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/sign-in'
+    | '/_authenticated/trips'
+    | '/_authenticated/trips/$tripId'
+    | '/api/auth/$'
+    | '/api/spacetime/token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  SignInRoute: typeof SignInRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiSpacetimeTokenRoute: typeof ApiSpacetimeTokenRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sign-in': {
+      id: '/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +138,66 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/trips': {
+      id: '/_authenticated/trips'
+      path: '/trips'
+      fullPath: '/trips'
+      preLoaderRoute: typeof AuthenticatedTripsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/spacetime/token': {
+      id: '/api/spacetime/token'
+      path: '/api/spacetime/token'
+      fullPath: '/api/spacetime/token'
+      preLoaderRoute: typeof ApiSpacetimeTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/trips/$tripId': {
+      id: '/_authenticated/trips/$tripId'
+      path: '/$tripId'
+      fullPath: '/trips/$tripId'
+      preLoaderRoute: typeof AuthenticatedTripsTripIdRouteImport
+      parentRoute: typeof AuthenticatedTripsRoute
+    }
   }
 }
 
+interface AuthenticatedTripsRouteChildren {
+  AuthenticatedTripsTripIdRoute: typeof AuthenticatedTripsTripIdRoute
+}
+
+const AuthenticatedTripsRouteChildren: AuthenticatedTripsRouteChildren = {
+  AuthenticatedTripsTripIdRoute: AuthenticatedTripsTripIdRoute,
+}
+
+const AuthenticatedTripsRouteWithChildren =
+  AuthenticatedTripsRoute._addFileChildren(AuthenticatedTripsRouteChildren)
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedTripsRoute: typeof AuthenticatedTripsRouteWithChildren
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedTripsRoute: AuthenticatedTripsRouteWithChildren,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  SignInRoute: SignInRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiSpacetimeTokenRoute: ApiSpacetimeTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
