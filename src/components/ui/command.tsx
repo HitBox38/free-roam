@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
+import { RiCheckLine, RiSearchLine } from "@remixicon/react"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -13,7 +14,6 @@ import {
   InputGroup,
   InputGroupAddon,
 } from "@/components/ui/input-group"
-import { RiSearchLine, RiCheckLine } from "@remixicon/react"
 
 function Command({
   className,

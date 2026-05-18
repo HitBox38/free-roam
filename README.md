@@ -487,6 +487,14 @@ The MVP should not attempt full Figma-style CRDT editing for every field unless 
 
 ---
 
+## Phase 1 Auth Bridge
+
+Better Auth protects the TanStack Start app and stores web sessions in Turso/libSQL. SpacetimeDB permissions are enforced separately with the SpacetimeDB connection identity (`ctx.sender`): after sign-in, the client connects to `free-roam-97kss`, stores the SpacetimeDB reconnect token in `localStorage`, and calls `ensure_user_profile` to link the current Better Auth user id to that SpacetimeDB identity for display/profile data.
+
+Trip membership and reducer authorization use the SpacetimeDB identity, so collaborators are invited by identity hex in Phase 1. Email-based invitations can be layered on later without weakening reducer-side permission checks.
+
+---
+
 ## Permissions Model
 
 Suggested trip roles:
@@ -529,10 +537,23 @@ Start the development server:
 bun run dev
 ```
 
-Run the SpacetimeDB module locally (exact command depends on final SpacetimeDB tooling in this repo), for example:
+Run the SpacetimeDB dev loop for the MainCloud database:
 
 ```bash
-bun run spacetime dev
+bun run spacetime:dev
+```
+
+Generate client bindings after changing the SpacetimeDB module:
+
+```bash
+bun run spacetime:generate
+```
+
+Generate and apply Better Auth database migrations:
+
+```bash
+bun run db:generate
+bun run db:migrate
 ```
 
 Build the app:
@@ -546,29 +567,35 @@ Run checks:
 ```bash
 bun run lint
 bun run typecheck
+bun run test
 ```
 
-These commands may need to be adjusted depending on the final package scripts.
+The SpacetimeDB module lives in `spacetimedb/spacetimedb` and targets the MainCloud database `free-roam-97kss`.
 
 ---
 
 ## Environment Variables
 
-The exact environment variables depend on auth, SpacetimeDB hosting, and UploadThing configuration.
+Local development reads secrets from `.env.local`. Do not commit that file.
 
 Expected categories:
 
 ```text
-# SpacetimeDB (example names — align with SDK/hosting)
-SPACETIME_MODULE_NAME=
-SPACETIME_SERVER_URL=
+# SpacetimeDB
+SPACETIME_DATABASE_NAME=free-roam-97kss
+SPACETIME_SERVER_URL=https://maincloud.spacetimedb.com
+VITE_SPACETIME_DATABASE_NAME=free-roam-97kss
+VITE_SPACETIME_SERVER_URL=https://maincloud.spacetimedb.com
 
 # Better Auth / TanStack Start server
-DATABASE_URL=
-BETTER_AUTH_SECRET=
 BETTER_AUTH_URL=
+BETTER_AUTH_SECRET=
 
-# UploadThing
+# Better Auth DB (Turso / libSQL)
+TURSO_DATABASE_URL=
+TURSO_AUTH_TOKEN=
+
+# UploadThing (Phase 4)
 UPLOADTHING_SECRET=
 UPLOADTHING_APP_ID=
 ```
