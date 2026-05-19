@@ -14,9 +14,13 @@ import {
   MapTileLayer,
   MapZoomControl,
 } from "@/components/ui/map"
+import { ActivityComments } from "@/components/activity-comments"
+import { ActivityHistory } from "@/components/activity-history"
+import { MapPresenceLayer } from "@/components/map-presence-layer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { ACTIVE_TYPING_WINDOW_MS, useTypingIndicator } from "@/components/typing-indicator"
 import { activityPayload, formatActivityTime } from "@/lib/activity-format"
 import { sortActivitiesForTimeline } from "@/lib/trip-domain"
 import { tables } from "@/module_bindings"
@@ -128,6 +132,7 @@ export function TripDetail({ tripId }: TripDetailProps) {
           activities={tripActivities}
           canEdit={canEdit}
           conn={conn}
+          tripId={parsedTripId}
           pinTargetId={pinTargetId}
           selectedActivityId={selectedActivity?.activityId}
           onSelectActivity={setSelectedActivityId}
@@ -135,6 +140,7 @@ export function TripDetail({ tripId }: TripDetailProps) {
         />
 
         <aside className="flex min-h-0 flex-col gap-4">
+          <PresenceSummary tripId={parsedTripId} />
           <CalendarList
             activities={tripActivities}
             labels={tripLabels}
@@ -142,18 +148,30 @@ export function TripDetail({ tripId }: TripDetailProps) {
             selectedActivityId={selectedActivity?.activityId}
             onSelectActivity={setSelectedActivityId}
           />
-          {selectedActivity && canEdit && (
-            <ActivityEditor
-              activity={selectedActivity}
-              conn={conn}
-              labels={tripLabels}
-              linkedLabelIds={activityLabels
-                .filter(
-                  (link) => link.activityId === selectedActivity.activityId
-                )
-                .map((link) => link.labelId)}
-              onPickPin={() => setPinTargetId(selectedActivity.activityId)}
-            />
+          {selectedActivity && (
+            <>
+              {canEdit && (
+                <ActivityEditor
+                  activity={selectedActivity}
+                  conn={conn}
+                  labels={tripLabels}
+                  linkedLabelIds={activityLabels
+                    .filter(
+                      (link) => link.activityId === selectedActivity.activityId
+                    )
+                    .map((link) => link.labelId)}
+                  onPickPin={() => setPinTargetId(selectedActivity.activityId)}
+                  tripId={parsedTripId}
+                />
+              )}
+              <ActivityComments
+                activityId={selectedActivity.activityId}
+                conn={conn}
+                tripId={parsedTripId}
+                isOwner={currentMember?.role === "owner"}
+              />
+              <ActivityHistory activityId={selectedActivity.activityId} />
+            </>
           )}
         </aside>
       </section>
@@ -507,6 +525,7 @@ function TripMap({
   activities,
   canEdit,
   conn,
+  tripId,
   pinTargetId,
   selectedActivityId,
   onSelectActivity,
@@ -515,6 +534,7 @@ function TripMap({
   activities: ReadonlyArray<Activities>
   canEdit: boolean
   conn: DbConnection | null
+  tripId: bigint
   pinTargetId: bigint | null
   selectedActivityId: bigint | undefined
   onSelectActivity: (activityId: bigint) => void
@@ -536,6 +556,7 @@ function TripMap({
       <Map center={center} zoom={locatedActivities.length > 0 ? 12 : 4}>
         <MapTileLayer />
         <MapZoomControl />
+        <MapPresenceLayer conn={conn} tripId={tripId} />
         {canEdit && pinTargetId && conn && (
           <MapClickUpdater
             activity={activities.find(
@@ -601,6 +622,77 @@ function MapClickUpdater({
   })
 
   return null
+}
+
+function PresenceSummary({ tripId }: { tripId: bigint }) {
+  const [presenceRows] = useTable(tables.mapPresence)
+  const [users] = useTable(tables.users)
+  const spacetime = useSpacetimeDB()
+  const identity = spacetime.identity
+
+  const activeViewers = useMemo(() => {
+    const byIdentity = new globalThis.Map<
+      string,
+      {
+        identityHex: string
+        updatedAtMs: number
+      }
+    >()
+
+    for (const row of presenceRows) {
+      if (row.tripId !== tripId) {
+        continue
+      }
+
+      if (identity && row.userIdentity.equals(identity)) {
+        continue
+      }
+
+      const identityHex = row.userIdentity.toHexString()
+      const nextUpdatedAtMs = Number(row.updatedAt.toMillis())
+      const previous = byIdentity.get(identityHex)
+      if (previous && previous.updatedAtMs >= nextUpdatedAtMs) {
+        continue
+      }
+
+      byIdentity.set(identityHex, {
+        identityHex,
+        updatedAtMs: nextUpdatedAtMs,
+      })
+    }
+
+    const usersByIdentity = new globalThis.Map<string, string>(
+      users.map((user) => [user.identity.toHexString(), user.displayName])
+    )
+    return Array.from(byIdentity.values()).map((viewer) => ({
+      identityHex: viewer.identityHex,
+      name: usersByIdentity.get(viewer.identityHex) ?? viewer.identityHex.slice(0, 8),
+    }))
+  }, [identity, presenceRows, tripId, users])
+
+  if (activeViewers.length === 0) {
+    return (
+      <section className="rounded-xl border bg-card px-4 py-2 text-sm text-muted-foreground">
+        No collaborators viewing map right now
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded-xl border bg-card px-4 py-2 text-sm">
+      <p className="font-medium">
+        {activeViewers.length} collaborator
+        {activeViewers.length === 1 ? "" : "s"} viewing
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {activeViewers
+          .slice(0, 3)
+          .map((viewer) => viewer.name)
+          .join(", ")}
+        {activeViewers.length > 3 ? ", …" : ""}
+      </p>
+    </section>
+  )
 }
 
 function CalendarList({
@@ -670,16 +762,54 @@ function CalendarList({
 function ActivityEditor({
   activity,
   conn,
+  tripId,
   labels,
   linkedLabelIds,
   onPickPin,
 }: {
   activity: Activities
   conn: DbConnection | null
+  tripId: bigint
   labels: ReadonlyArray<Labels>
   linkedLabelIds: ReadonlyArray<bigint>
   onPickPin: () => void
 }) {
+  const [typingIndicators] = useTable(tables.typingIndicators)
+  const [users] = useTable(tables.users)
+  const spacetime = useSpacetimeDB()
+  const identityHex = spacetime.identity?.toHexString()
+  const typing = useTypingIndicator({
+    conn,
+    tripId,
+    targetType: "activity",
+    targetId: activity.activityId.toString(),
+  })
+
+  const remoteTypingNames = useMemo(() => {
+    const usersByIdentity = new globalThis.Map<string, string>(
+      users.map((user) => [user.identity.toHexString(), user.displayName])
+    )
+    const now = Date.now()
+
+    return Array.from(
+      new Set(
+        typingIndicators
+          .filter((row) => row.tripId === tripId)
+          .filter((row) => row.targetType === "activity")
+          .filter((row) => row.targetId === activity.activityId.toString())
+          .filter(
+            (row) =>
+              now - Number(row.updatedAt.toMillis()) <= ACTIVE_TYPING_WINDOW_MS
+          )
+          .filter((row) => row.userIdentity.toHexString() !== identityHex)
+          .map((row) => {
+            const userIdentityHex = row.userIdentity.toHexString()
+            return usersByIdentity.get(userIdentityHex) ?? userIdentityHex.slice(0, 8)
+          })
+      )
+    )
+  }, [activity.activityId, identityHex, tripId, typingIndicators, users])
+
   const form = useForm({
     defaultValues: {
       name: activity.name,
@@ -703,6 +833,7 @@ function ActivityEditor({
         locationName: value.locationName || undefined,
         address: value.address || undefined,
       })
+      typing.clearTyping()
     },
   })
 
@@ -716,6 +847,13 @@ function ActivityEditor({
       </div>
       <form
         className="flex flex-col gap-3"
+        onInputCapture={() => typing.notifyTyping()}
+        onBlurCapture={(event) => {
+          const relatedTarget = event.relatedTarget as Node | null
+          if (!relatedTarget || !event.currentTarget.contains(relatedTarget)) {
+            typing.clearTyping()
+          }
+        }}
         onSubmit={(event) => {
           event.preventDefault()
           void form.handleSubmit()
@@ -868,6 +1006,12 @@ function ActivityEditor({
             Delete
           </Button>
         </div>
+        {remoteTypingNames.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {remoteTypingNames.join(", ")}{" "}
+            {remoteTypingNames.length > 1 ? "are" : "is"} typing...
+          </p>
+        )}
       </form>
     </section>
   )
