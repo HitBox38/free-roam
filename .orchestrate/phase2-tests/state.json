@@ -1,0 +1,72 @@
+{
+  "rootSlug": "phase2-tests",
+  "tasks": [
+    {
+      "name": "phase2-backend",
+      "type": "worker",
+      "branch": "orch/phase2-tests/phase2-backend",
+      "startingRef": "main",
+      "dependsOn": [],
+      "agentId": null,
+      "runId": null,
+      "parentAgentId": null,
+      "status": "running",
+      "resultStatus": null,
+      "handoffPath": null,
+      "startedAt": "2026-05-19T10:52:32.848Z",
+      "finishedAt": null,
+      "lastUpdate": "2026-05-19T10:52:32.848Z",
+      "note": null,
+      "slackTs": null,
+      "prNumber": null,
+      "failureMode": null,
+      "verification": null,
+      "attempts": 1
+    },
+    {
+      "name": "phase2-frontend-collab",
+      "type": "worker",
+      "branch": "orch/phase2-tests/phase2-frontend-collab",
+      "startingRef": "orch/phase2-tests/phase2-backend",
+      "dependsOn": [
+        "phase2-backend"
+      ],
+      "agentId": null,
+      "runId": null,
+      "parentAgentId": null,
+      "status": "pending",
+      "resultStatus": null,
+      "handoffPath": null,
+      "startedAt": null,
+      "finishedAt": null,
+      "lastUpdate": null,
+      "note": null,
+      "slackTs": null,
+      "prNumber": null,
+      "failureMode": null,
+      "verification": null
+    },
+    {
+      "name": "phase1-vitest-coverage",
+      "type": "worker",
+      "branch": "orch/phase2-tests/phase1-vitest-coverage",
+      "startingRef": "main",
+      "dependsOn": [],
+      "agentId": null,
+      "runId": null,
+      "parentAgentId": null,
+      "status": "pending",
+      "resultStatus": null,
+      "handoffPath": null,
+      "startedAt": null,
+      "finishedAt": null,
+      "lastUpdate": null,
+      "note": null,
+      "slackTs": null,
+      "prNumber": null,
+      "failureMode": null,
+      "verification": null
+    }
+  ],
+  "attention": []
+}
