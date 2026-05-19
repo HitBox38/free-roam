@@ -102,6 +102,14 @@
     {
       "at": "2026-05-19T11:10:30.082Z",
       "message": "phase2-frontend-collab: tool_call idle 301279ms; last=none since wait start (2026-05-19T11:05:28.803Z)"
+    },
+    {
+      "at": "2026-05-19T11:31:24.570Z",
+      "message": "phase2-frontend-collab: SSE idle 303130ms, polled status=running; watchdog still waiting"
+    },
+    {
+      "at": "2026-05-19T11:31:24.571Z",
+      "message": "phase2-frontend-collab: tool_call idle 303131ms; last=2026-05-19T11:26:21.440Z"
     }
   ]
 }
