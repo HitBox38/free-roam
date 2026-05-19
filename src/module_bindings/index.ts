@@ -35,29 +35,40 @@ import {
 
 // Import all reducer arg schemas
 import AddActivityLabelReducer from "./add_activity_label_reducer";
+import AddCommentReducer from "./add_comment_reducer";
+import ClearMapPresenceReducer from "./clear_map_presence_reducer";
+import ClearTypingIndicatorReducer from "./clear_typing_indicator_reducer";
 import CreateActivityReducer from "./create_activity_reducer";
 import CreateLabelReducer from "./create_label_reducer";
 import CreateTripReducer from "./create_trip_reducer";
 import DeleteLabelReducer from "./delete_label_reducer";
+import EditCommentReducer from "./edit_comment_reducer";
 import EnsureUserProfileReducer from "./ensure_user_profile_reducer";
 import InviteMemberReducer from "./invite_member_reducer";
 import RemoveActivityLabelReducer from "./remove_activity_label_reducer";
 import ReorderActivityWithinDayReducer from "./reorder_activity_within_day_reducer";
 import RevokeMemberReducer from "./revoke_member_reducer";
 import SoftDeleteActivityReducer from "./soft_delete_activity_reducer";
+import SoftDeleteCommentReducer from "./soft_delete_comment_reducer";
 import UpdateActivityReducer from "./update_activity_reducer";
 import UpdateLabelReducer from "./update_label_reducer";
 import UpdateMemberRoleReducer from "./update_member_role_reducer";
 import UpdateTripReducer from "./update_trip_reducer";
+import UpsertMapPresenceReducer from "./upsert_map_presence_reducer";
+import UpsertTypingIndicatorReducer from "./upsert_typing_indicator_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
 import ActivitiesRow from "./activities_table";
+import ActivityCommentsRow from "./activity_comments_table";
+import ActivityHistoryRow from "./activity_history_table";
 import ActivityLabelsRow from "./activity_labels_table";
 import LabelsRow from "./labels_table";
+import MapPresenceRow from "./map_presence_table";
 import TripMembersRow from "./trip_members_table";
 import TripsRow from "./trips_table";
+import TypingIndicatorsRow from "./typing_indicators_table";
 import UsersRow from "./users_table";
 
 /** Type-only namespace exports for generated type groups. */
@@ -78,6 +89,37 @@ const tablesSchema = __schema({
       { name: 'activities_activity_id_key', constraint: 'unique', columns: ['activityId'] },
     ],
   }, ActivitiesRow),
+  activityComments: __table({
+    name: 'activity_comments',
+    indexes: [
+      { accessor: 'activity_comments_activity_id', name: 'activity_comments_activity_id_idx_btree', algorithm: 'btree', columns: [
+        'activityId',
+      ] },
+      { accessor: 'commentId', name: 'activity_comments_comment_id_idx_btree', algorithm: 'btree', columns: [
+        'commentId',
+      ] },
+      { accessor: 'activity_comments_parent_comment_id', name: 'activity_comments_parent_comment_id_idx_btree', algorithm: 'btree', columns: [
+        'parentCommentId',
+      ] },
+    ],
+    constraints: [
+      { name: 'activity_comments_comment_id_key', constraint: 'unique', columns: ['commentId'] },
+    ],
+  }, ActivityCommentsRow),
+  activityHistory: __table({
+    name: 'activity_history',
+    indexes: [
+      { accessor: 'activity_history_activity_id', name: 'activity_history_activity_id_idx_btree', algorithm: 'btree', columns: [
+        'activityId',
+      ] },
+      { accessor: 'historyId', name: 'activity_history_history_id_idx_btree', algorithm: 'btree', columns: [
+        'historyId',
+      ] },
+    ],
+    constraints: [
+      { name: 'activity_history_history_id_key', constraint: 'unique', columns: ['historyId'] },
+    ],
+  }, ActivityHistoryRow),
   activityLabels: __table({
     name: 'activity_labels',
     indexes: [
@@ -109,6 +151,26 @@ const tablesSchema = __schema({
       { name: 'labels_label_id_key', constraint: 'unique', columns: ['labelId'] },
     ],
   }, LabelsRow),
+  mapPresence: __table({
+    name: 'map_presence',
+    indexes: [
+      { accessor: 'map_presence_connection_id', name: 'map_presence_connection_id_idx_btree', algorithm: 'btree', columns: [
+        'connectionId',
+      ] },
+      { accessor: 'presenceId', name: 'map_presence_presence_id_idx_btree', algorithm: 'btree', columns: [
+        'presenceId',
+      ] },
+      { accessor: 'map_presence_trip_id', name: 'map_presence_trip_id_idx_btree', algorithm: 'btree', columns: [
+        'tripId',
+      ] },
+      { accessor: 'map_presence_user_identity', name: 'map_presence_user_identity_idx_btree', algorithm: 'btree', columns: [
+        'userIdentity',
+      ] },
+    ],
+    constraints: [
+      { name: 'map_presence_presence_id_key', constraint: 'unique', columns: ['presenceId'] },
+    ],
+  }, MapPresenceRow),
   tripMembers: __table({
     name: 'trip_members',
     indexes: [
@@ -140,6 +202,23 @@ const tablesSchema = __schema({
       { name: 'trips_trip_id_key', constraint: 'unique', columns: ['tripId'] },
     ],
   }, TripsRow),
+  typingIndicators: __table({
+    name: 'typing_indicators',
+    indexes: [
+      { accessor: 'indicatorId', name: 'typing_indicators_indicator_id_idx_btree', algorithm: 'btree', columns: [
+        'indicatorId',
+      ] },
+      { accessor: 'typing_indicators_trip_id', name: 'typing_indicators_trip_id_idx_btree', algorithm: 'btree', columns: [
+        'tripId',
+      ] },
+      { accessor: 'typing_indicators_user_identity', name: 'typing_indicators_user_identity_idx_btree', algorithm: 'btree', columns: [
+        'userIdentity',
+      ] },
+    ],
+    constraints: [
+      { name: 'typing_indicators_indicator_id_key', constraint: 'unique', columns: ['indicatorId'] },
+    ],
+  }, TypingIndicatorsRow),
   users: __table({
     name: 'users',
     indexes: [
@@ -160,20 +239,27 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_activity_label", AddActivityLabelReducer),
+  __reducerSchema("add_comment", AddCommentReducer),
+  __reducerSchema("clear_map_presence", ClearMapPresenceReducer),
+  __reducerSchema("clear_typing_indicator", ClearTypingIndicatorReducer),
   __reducerSchema("create_activity", CreateActivityReducer),
   __reducerSchema("create_label", CreateLabelReducer),
   __reducerSchema("create_trip", CreateTripReducer),
   __reducerSchema("delete_label", DeleteLabelReducer),
+  __reducerSchema("edit_comment", EditCommentReducer),
   __reducerSchema("ensure_user_profile", EnsureUserProfileReducer),
   __reducerSchema("invite_member", InviteMemberReducer),
   __reducerSchema("remove_activity_label", RemoveActivityLabelReducer),
   __reducerSchema("reorder_activity_within_day", ReorderActivityWithinDayReducer),
   __reducerSchema("revoke_member", RevokeMemberReducer),
   __reducerSchema("soft_delete_activity", SoftDeleteActivityReducer),
+  __reducerSchema("soft_delete_comment", SoftDeleteCommentReducer),
   __reducerSchema("update_activity", UpdateActivityReducer),
   __reducerSchema("update_label", UpdateLabelReducer),
   __reducerSchema("update_member_role", UpdateMemberRoleReducer),
   __reducerSchema("update_trip", UpdateTripReducer),
+  __reducerSchema("upsert_map_presence", UpsertMapPresenceReducer),
+  __reducerSchema("upsert_typing_indicator", UpsertTypingIndicatorReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

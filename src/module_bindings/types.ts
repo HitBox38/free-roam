@@ -33,6 +33,29 @@ export const Activities = __t.object("Activities", {
 });
 export type Activities = __Infer<typeof Activities>;
 
+export const ActivityComments = __t.object("ActivityComments", {
+  commentId: __t.u64(),
+  activityId: __t.u64(),
+  parentCommentId: __t.option(__t.u64()),
+  userIdentity: __t.identity(),
+  body: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.option(__t.timestamp()),
+  deletedAt: __t.option(__t.timestamp()),
+});
+export type ActivityComments = __Infer<typeof ActivityComments>;
+
+export const ActivityHistory = __t.object("ActivityHistory", {
+  historyId: __t.u64(),
+  activityId: __t.u64(),
+  userIdentity: __t.identity(),
+  action: __t.string(),
+  beforeJson: __t.option(__t.string()),
+  afterJson: __t.option(__t.string()),
+  createdAt: __t.timestamp(),
+});
+export type ActivityHistory = __Infer<typeof ActivityHistory>;
+
 export const ActivityLabels = __t.object("ActivityLabels", {
   activityLabelId: __t.u64(),
   activityId: __t.u64(),
@@ -50,6 +73,18 @@ export const Labels = __t.object("Labels", {
   updatedAt: __t.timestamp(),
 });
 export type Labels = __Infer<typeof Labels>;
+
+export const MapPresence = __t.object("MapPresence", {
+  presenceId: __t.u64(),
+  connectionId: __t.connectionId(),
+  tripId: __t.u64(),
+  userIdentity: __t.identity(),
+  lat: __t.f64(),
+  lng: __t.f64(),
+  color: __t.string(),
+  updatedAt: __t.timestamp(),
+});
+export type MapPresence = __Infer<typeof MapPresence>;
 
 export const TripMembers = __t.object("TripMembers", {
   membershipId: __t.u64(),
@@ -70,6 +105,17 @@ export const Trips = __t.object("Trips", {
   deletedAt: __t.option(__t.timestamp()),
 });
 export type Trips = __Infer<typeof Trips>;
+
+export const TypingIndicators = __t.object("TypingIndicators", {
+  indicatorId: __t.u64(),
+  connectionId: __t.connectionId(),
+  tripId: __t.u64(),
+  userIdentity: __t.identity(),
+  targetType: __t.string(),
+  targetId: __t.string(),
+  updatedAt: __t.timestamp(),
+});
+export type TypingIndicators = __Infer<typeof TypingIndicators>;
 
 export const Users = __t.object("Users", {
   identity: __t.identity(),

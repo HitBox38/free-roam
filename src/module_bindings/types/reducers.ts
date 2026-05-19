@@ -7,34 +7,48 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import AddActivityLabelReducer from "../add_activity_label_reducer";
+import AddCommentReducer from "../add_comment_reducer";
+import ClearMapPresenceReducer from "../clear_map_presence_reducer";
+import ClearTypingIndicatorReducer from "../clear_typing_indicator_reducer";
 import CreateActivityReducer from "../create_activity_reducer";
 import CreateLabelReducer from "../create_label_reducer";
 import CreateTripReducer from "../create_trip_reducer";
 import DeleteLabelReducer from "../delete_label_reducer";
+import EditCommentReducer from "../edit_comment_reducer";
 import EnsureUserProfileReducer from "../ensure_user_profile_reducer";
 import InviteMemberReducer from "../invite_member_reducer";
 import RemoveActivityLabelReducer from "../remove_activity_label_reducer";
 import ReorderActivityWithinDayReducer from "../reorder_activity_within_day_reducer";
 import RevokeMemberReducer from "../revoke_member_reducer";
 import SoftDeleteActivityReducer from "../soft_delete_activity_reducer";
+import SoftDeleteCommentReducer from "../soft_delete_comment_reducer";
 import UpdateActivityReducer from "../update_activity_reducer";
 import UpdateLabelReducer from "../update_label_reducer";
 import UpdateMemberRoleReducer from "../update_member_role_reducer";
 import UpdateTripReducer from "../update_trip_reducer";
+import UpsertMapPresenceReducer from "../upsert_map_presence_reducer";
+import UpsertTypingIndicatorReducer from "../upsert_typing_indicator_reducer";
 
 export type AddActivityLabelParams = __Infer<typeof AddActivityLabelReducer>;
+export type AddCommentParams = __Infer<typeof AddCommentReducer>;
+export type ClearMapPresenceParams = __Infer<typeof ClearMapPresenceReducer>;
+export type ClearTypingIndicatorParams = __Infer<typeof ClearTypingIndicatorReducer>;
 export type CreateActivityParams = __Infer<typeof CreateActivityReducer>;
 export type CreateLabelParams = __Infer<typeof CreateLabelReducer>;
 export type CreateTripParams = __Infer<typeof CreateTripReducer>;
 export type DeleteLabelParams = __Infer<typeof DeleteLabelReducer>;
+export type EditCommentParams = __Infer<typeof EditCommentReducer>;
 export type EnsureUserProfileParams = __Infer<typeof EnsureUserProfileReducer>;
 export type InviteMemberParams = __Infer<typeof InviteMemberReducer>;
 export type RemoveActivityLabelParams = __Infer<typeof RemoveActivityLabelReducer>;
 export type ReorderActivityWithinDayParams = __Infer<typeof ReorderActivityWithinDayReducer>;
 export type RevokeMemberParams = __Infer<typeof RevokeMemberReducer>;
 export type SoftDeleteActivityParams = __Infer<typeof SoftDeleteActivityReducer>;
+export type SoftDeleteCommentParams = __Infer<typeof SoftDeleteCommentReducer>;
 export type UpdateActivityParams = __Infer<typeof UpdateActivityReducer>;
 export type UpdateLabelParams = __Infer<typeof UpdateLabelReducer>;
 export type UpdateMemberRoleParams = __Infer<typeof UpdateMemberRoleReducer>;
 export type UpdateTripParams = __Infer<typeof UpdateTripReducer>;
+export type UpsertMapPresenceParams = __Infer<typeof UpsertMapPresenceReducer>;
+export type UpsertTypingIndicatorParams = __Infer<typeof UpsertTypingIndicatorReducer>;
 

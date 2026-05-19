@@ -1,13 +1,38 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
-import {
-  diffActivityFields,
-  parseHistoryAction,
-  parseTargetType,
-  stringifySafe,
-  validateColor,
-  validateLatLng,
-} from '../index';
+vi.mock('spacetimedb/server', () => {
+  class MockSenderError extends Error {}
+
+  return {
+    SenderError: MockSenderError,
+    schema: vi.fn(),
+    table: vi.fn(),
+    t: vi.fn(),
+  };
+});
+
+let parseHistoryAction: (value: string) => string;
+let parseTargetType: (value: string) => string;
+let validateLatLng: (lat: number, lng: number) => void;
+let validateColor: (value: string) => string;
+let stringifySafe: (value: unknown) => string;
+let diffActivityFields: (
+  before: Record<string, unknown>,
+  after: Record<string, unknown>
+) => Array<{ action: string }>;
+
+beforeAll(async () => {
+  const mod = await import('../collab-helpers');
+  parseHistoryAction = mod.parseHistoryAction;
+  parseTargetType = mod.parseTargetType;
+  validateLatLng = mod.validateLatLng;
+  validateColor = mod.validateColor;
+  stringifySafe = mod.stringifySafe;
+  diffActivityFields = mod.diffActivityFields as (
+    before: Record<string, unknown>,
+    after: Record<string, unknown>
+  ) => Array<{ action: string }>;
+});
 
 const baseActivity = {
   name: 'Louvre Museum',
