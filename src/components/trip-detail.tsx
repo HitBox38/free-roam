@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { activityPayload, formatActivityTime } from "@/lib/activity-format"
 import { sortActivitiesForTimeline } from "@/lib/trip-domain"
 import { tables } from "@/module_bindings"
 
@@ -872,34 +873,3 @@ function ActivityEditor({
   )
 }
 
-function activityPayload(activity: Activities) {
-  return {
-    activityId: activity.activityId,
-    name: activity.name,
-    description: activity.description,
-    date: activity.date,
-    timeType: activity.timeType,
-    time: activity.time,
-    order: activity.order,
-    locationName: activity.locationName,
-    address: activity.address,
-    lat: activity.lat,
-    lng: activity.lng,
-    locationProvider: activity.locationProvider,
-    providerPlaceId: activity.providerPlaceId,
-    externalUrl: activity.externalUrl,
-  }
-}
-
-function formatActivityTime(activity: Activities): string {
-  switch (activity.timeType) {
-    case "exact":
-      return activity.time ? `At ${activity.time}` : "Exact time"
-    case "ordered":
-      return `Order ${activity.order ?? 0}`
-    case "none":
-      return "No time"
-    default:
-      return "No time"
-  }
-}
