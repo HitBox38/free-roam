@@ -1,0 +1,13 @@
+[2026-05-19T10:52:41.329Z] phase2-backend: spawn failed after 3 transient sub-attempts: l: [invalid_model] Model 'gpt-5.5' does not match a known variant. Call GET /v1/models to list valid id+params combinations. run `bun cli.ts models --check` to re-probe the catalog against /v1/agents.
+[2026-05-19T10:53:55.659Z] phase2-backend: respawned by self-planner (was error)
+[2026-05-19T10:56:36.585Z] phase1-vitest-coverage: `## Measurements` had 2 unparseable line(s); first: **new vitest tests:** +35
+[2026-05-19T10:56:36.750Z] phase1-vitest-coverage: measurement_mismatch total vitest tests [parse-failed] regex did not match command stdout
+[2026-05-19T10:56:36.751Z] phase1-vitest-coverage: verification self-reported (unit-test-verified)
+[2026-05-19T11:05:19.243Z] phase2-backend: verification self-reported (unit-test-verified)
+[2026-05-19T11:10:30.080Z] phase2-frontend-collab: SSE idle 301120ms, polled status=running; watchdog still waiting
+[2026-05-19T11:10:30.082Z] phase2-frontend-collab: tool_call idle 301279ms; last=none since wait start (2026-05-19T11:05:28.803Z)
+[2026-05-19T11:31:24.570Z] phase2-frontend-collab: SSE idle 303130ms, polled status=running; watchdog still waiting
+[2026-05-19T11:31:24.571Z] phase2-frontend-collab: tool_call idle 303131ms; last=2026-05-19T11:26:21.440Z
+[2026-05-19T11:49:41.524Z] phase2-frontend-collab: `## Measurements` had 3 unparseable line(s); first: `presence reducer calls/sec under continuous motion (map-presence.test): <= 2`
+[2026-05-19T11:49:41.709Z] phase2-frontend-collab: measurement_mismatch presence reducer calls per second under continuous motion [parse-failed] regex did not match command stdout
+[2026-05-19T11:49:41.709Z] phase2-frontend-collab: verification self-reported (unit-test-verified)

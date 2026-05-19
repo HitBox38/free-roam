@@ -39,13 +39,13 @@
       "handoffPath": "handoffs/phase2-frontend-collab.md",
       "startedAt": "2026-05-19T11:05:25.948Z",
       "finishedAt": "2026-05-19T11:49:40.500Z",
-      "lastUpdate": "2026-05-19T11:49:40.501Z",
+      "lastUpdate": "2026-05-19T11:49:41.709Z",
       "note": null,
       "attempts": 1,
       "slackTs": null,
       "prNumber": null,
       "failureMode": null,
-      "verification": null
+      "verification": "unit-test-verified"
     },
     {
       "name": "phase1-vitest-coverage",
@@ -110,6 +110,18 @@
     {
       "at": "2026-05-19T11:31:24.571Z",
       "message": "phase2-frontend-collab: tool_call idle 303131ms; last=2026-05-19T11:26:21.440Z"
+    },
+    {
+      "at": "2026-05-19T11:49:41.524Z",
+      "message": "phase2-frontend-collab: `## Measurements` had 3 unparseable line(s); first: `presence reducer calls/sec under continuous motion (map-presence.test): <= 2`"
+    },
+    {
+      "at": "2026-05-19T11:49:41.709Z",
+      "message": "phase2-frontend-collab: measurement_mismatch presence reducer calls per second under continuous motion [parse-failed] regex did not match command stdout"
+    },
+    {
+      "at": "2026-05-19T11:49:41.709Z",
+      "message": "phase2-frontend-collab: verification self-reported (unit-test-verified)"
     }
   ]
 }
