@@ -1107,6 +1107,7 @@ function optionalProvider(value: string | undefined): string | undefined {
 
   switch (value) {
     case 'manual':
+    case 'geoapify':
     case 'osm':
     case 'google':
     case 'apple':

@@ -1,16 +1,19 @@
 import { useForm } from "@tanstack/react-form"
 import { Link } from "@tanstack/react-router"
-import { useMemo, useState } from "react"
-import { useMapEvents } from "react-leaflet"
+import { useEffect, useMemo, useState } from "react"
+import { useMap, useMapEvents } from "react-leaflet"
 import { useSpacetimeDB, useTable } from "spacetimedb/react"
 import type { LeafletMouseEvent } from "leaflet"
 
 import type { DbConnection } from "@/module_bindings"
 import type { Activities, Labels, TripMembers, Trips } from "@/module_bindings/types"
+import type { GeocodedPlace } from "@/lib/geocoding/geoapify"
 import {
   Map,
   MapMarker,
+  MapPolyline,
   MapPopup,
+  MapSearchControl,
   MapTileLayer,
   MapZoomControl,
 } from "@/components/ui/map"
@@ -19,9 +22,11 @@ import { ActivityHistory } from "@/components/activity-history"
 import { MapPresenceLayer } from "@/components/map-presence-layer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PlaceAutocomplete } from "@/components/ui/place-autocomplete"
 import { Textarea } from "@/components/ui/textarea"
 import { ACTIVE_TYPING_WINDOW_MS, useTypingIndicator } from "@/components/typing-indicator"
 import { activityPayload, formatActivityTime } from "@/lib/activity-format"
+import { buildExternalMapLinks, buildOpenStreetMapUrl } from "@/lib/map-links"
 import { sortActivitiesForTimeline } from "@/lib/trip-domain"
 import { tables } from "@/module_bindings"
 
@@ -540,8 +545,22 @@ function TripMap({
   onSelectActivity: (activityId: bigint) => void
   onClearPinTarget: () => void
 }) {
-  const locatedActivities = activities.filter(
-    (activity) => activity.lat !== undefined && activity.lng !== undefined
+  const locatedActivities = useMemo(
+    () =>
+      activities.filter(
+        (activity) => activity.lat !== undefined && activity.lng !== undefined
+      ),
+    [activities]
+  )
+  const selectedActivity = activities.find(
+    (activity) => activity.activityId === selectedActivityId
+  )
+  const timelinePositions = useMemo(
+    () =>
+      locatedActivities.map(
+        (activity) => [activity.lat!, activity.lng!] as [number, number]
+      ),
+    [locatedActivities]
   )
   const center =
     locatedActivities.length > 0
@@ -556,7 +575,20 @@ function TripMap({
       <Map center={center} zoom={locatedActivities.length > 0 ? 12 : 4}>
         <MapTileLayer />
         <MapZoomControl />
+        <MapBoundsFitter positions={timelinePositions} />
+        {canEdit && conn && selectedActivity && (
+          <MapSearchControl
+            placeholder="Search places"
+            aria-label="Search places for selected activity"
+            onPlaceSelect={(place) => {
+              updateActivityLocationFromPlace(conn, selectedActivity, place)
+            }}
+          />
+        )}
         <MapPresenceLayer conn={conn} tripId={tripId} />
+        {timelinePositions.length > 1 && (
+          <MapPolyline positions={timelinePositions} />
+        )}
         {canEdit && pinTargetId && conn && (
           <MapClickUpdater
             activity={activities.find(
@@ -566,10 +598,12 @@ function TripMap({
             onUpdated={onClearPinTarget}
           />
         )}
-        {locatedActivities.map((activity) => (
+        {locatedActivities.map((activity, index) => (
           <MapMarker
             key={activity.activityId.toString()}
             position={[activity.lat!, activity.lng!]}
+            icon={<NumberedActivityMarker value={index + 1} />}
+            iconAnchor={[14, 14]}
             eventHandlers={{
               click: () => onSelectActivity(activity.activityId),
             }}
@@ -578,6 +612,7 @@ function TripMap({
               <div className="flex flex-col gap-1 rounded-lg bg-popover p-3 text-sm text-popover-foreground">
                 <strong>{activity.name}</strong>
                 {activity.locationName && <span>{activity.locationName}</span>}
+                <ActivityExternalLinks activity={activity} />
                 {selectedActivityId === activity.activityId && (
                   <span className="text-muted-foreground">Selected</span>
                 )}
@@ -592,6 +627,65 @@ function TripMap({
         </div>
       )}
     </div>
+  )
+}
+
+function MapBoundsFitter({ positions }: { positions: ReadonlyArray<[number, number]> }) {
+  const map = useMap()
+  const boundsKey = positions
+    .map(([lat, lng]) => `${lat.toFixed(5)},${lng.toFixed(5)}`)
+    .join("|")
+
+  useEffect(() => {
+    if (positions.length === 0) {
+      return
+    }
+
+    const firstPosition = positions[0]
+
+    if (positions.length === 1) {
+      map.setView(firstPosition, Math.max(map.getZoom(), 13))
+      return
+    }
+
+    map.fitBounds([...positions], {
+      maxZoom: 14,
+      padding: [32, 32],
+    })
+  }, [boundsKey, map, positions])
+
+  return null
+}
+
+function NumberedActivityMarker({ value }: { value: number }) {
+  return (
+    <span className="flex size-7 items-center justify-center rounded-full border-2 border-background bg-primary text-xs font-semibold text-primary-foreground shadow">
+      {value}
+    </span>
+  )
+}
+
+function ActivityExternalLinks({ activity }: { activity: Activities }) {
+  const links = buildExternalMapLinks(activity)
+
+  if (links.length === 0) {
+    return null
+  }
+
+  return (
+    <span className="flex flex-wrap gap-2 pt-1">
+      {links.map((link) => (
+        <a
+          key={link.provider}
+          className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+          href={link.url}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {link.label}
+        </a>
+      ))}
+    </span>
   )
 }
 
@@ -616,12 +710,33 @@ function MapClickUpdater({
         lng: event.latlng.lng,
         locationProvider: "manual",
         locationName: activity.locationName ?? "Manual map pin",
+        externalUrl: buildOpenStreetMapUrl({
+          lat: event.latlng.lat,
+          lng: event.latlng.lng,
+        }),
       })
       onUpdated()
     },
   })
 
   return null
+}
+
+function updateActivityLocationFromPlace(
+  conn: DbConnection,
+  activity: Activities,
+  place: GeocodedPlace
+) {
+  conn.reducers.updateActivity({
+    ...activityPayload(activity),
+    locationName: place.name,
+    address: place.address,
+    lat: place.lat,
+    lng: place.lng,
+    locationProvider: place.locationProvider,
+    providerPlaceId: place.providerPlaceId,
+    externalUrl: buildOpenStreetMapUrl(place),
+  })
 }
 
 function PresenceSummary({ tripId }: { tripId: bigint }) {
@@ -962,6 +1077,19 @@ function ActivityEditor({
             />
           )}
         />
+        <PlaceAutocomplete
+          aria-label="Find location with Geoapify"
+          placeholder="Search places with Geoapify"
+          onPlaceSelect={(place) => {
+            form.setFieldValue("locationName", place.name)
+            form.setFieldValue("address", place.address)
+            if (conn) {
+              updateActivityLocationFromPlace(conn, activity, place)
+            }
+            typing.clearTyping()
+          }}
+        />
+        <ActivityExternalLinks activity={activity} />
         <div className="flex flex-wrap gap-2">
           {labels.map((label) => {
             const linked = linkedLabelIds.includes(label.labelId)
