@@ -5,6 +5,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools"
 import appCss from "../styles.css?url"
 import { ThemeClassSync } from "@/components/theme-class-sync"
 import { ThemeSwitcher } from "@/components/theme-switcher"
+import { APP_NAME, APP_TAGLINE } from "@/lib/app-brand"
 
 const themeScript = `
 (() => {
@@ -46,7 +47,11 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "TanStack Start Starter",
+        title: APP_NAME,
+      },
+      {
+        name: "description",
+        content: APP_TAGLINE,
       },
     ],
     links: [

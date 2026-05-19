@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { APP_NAME, APP_TAGLINE } from "@/lib/app-brand"
 import { authClient } from "@/lib/auth-client"
 
 type AuthMode = "sign-in" | "sign-up"
@@ -56,12 +57,11 @@ export function AuthPanel() {
         }}
       >
         <div className="flex flex-col gap-1">
+          <p className="text-lg font-semibold tracking-tight">{APP_NAME}</p>
           <h1 className="text-xl font-semibold">
             {mode === "sign-in" ? "Sign in" : "Create your account"}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Plan trips with shared activities, maps, labels, and dates.
-          </p>
+          <p className="text-sm text-muted-foreground">{APP_TAGLINE}</p>
         </div>
 
         {mode === "sign-up" && (

@@ -1,6 +1,6 @@
-# Collaborative Trip Planner
+# FreeRoam
 
-A collaborative trip planning web app with real-time editing, map planning, calendar planning, activity tickets, labels, comments, attachments, and trip timeline visualization.
+FreeRoam is a collaborative trip planning web app with real-time editing, map planning, calendar planning, activity tickets, labels, comments, attachments, and trip timeline visualization.
 
 A **core experience** is **Figma-like live presence and cursors on the map**, so collaborators can see where others are looking and pointing in real time—implemented on top of a persistent WebSocket datastore with aggressive client-side throttling to stay within free-tier limits.
 
