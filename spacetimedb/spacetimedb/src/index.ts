@@ -141,6 +141,116 @@ const activityLabels = table(
   }
 );
 
+const activityComments = table(
+  {
+    public: true,
+    indexes: [
+      {
+        accessor: 'activity_comments_activity_id',
+        algorithm: 'btree',
+        columns: ['activityId'],
+      },
+      {
+        accessor: 'activity_comments_parent_comment_id',
+        algorithm: 'btree',
+        columns: ['parentCommentId'],
+      },
+    ],
+  },
+  {
+    commentId: t.u64().primaryKey().autoInc(),
+    activityId: t.u64(),
+    parentCommentId: t.u64().optional(),
+    userIdentity: t.identity(),
+    body: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp().optional(),
+    deletedAt: t.timestamp().optional(),
+  }
+);
+
+const activityHistory = table(
+  {
+    public: true,
+    indexes: [
+      {
+        accessor: 'activity_history_activity_id',
+        algorithm: 'btree',
+        columns: ['activityId'],
+      },
+    ],
+  },
+  {
+    historyId: t.u64().primaryKey().autoInc(),
+    activityId: t.u64(),
+    userIdentity: t.identity(),
+    action: t.string(),
+    beforeJson: t.string().optional(),
+    afterJson: t.string().optional(),
+    createdAt: t.timestamp(),
+  }
+);
+
+const mapPresence = table(
+  {
+    public: true,
+    indexes: [
+      {
+        accessor: 'map_presence_connection_id',
+        algorithm: 'btree',
+        columns: ['connectionId'],
+      },
+      {
+        accessor: 'map_presence_trip_id',
+        algorithm: 'btree',
+        columns: ['tripId'],
+      },
+      {
+        accessor: 'map_presence_user_identity',
+        algorithm: 'btree',
+        columns: ['userIdentity'],
+      },
+    ],
+  },
+  {
+    presenceId: t.u64().primaryKey().autoInc(),
+    connectionId: t.connectionId(),
+    tripId: t.u64(),
+    userIdentity: t.identity(),
+    lat: t.f64(),
+    lng: t.f64(),
+    color: t.string(),
+    updatedAt: t.timestamp(),
+  }
+);
+
+const typingIndicators = table(
+  {
+    public: true,
+    indexes: [
+      {
+        accessor: 'typing_indicators_trip_id',
+        algorithm: 'btree',
+        columns: ['tripId'],
+      },
+      {
+        accessor: 'typing_indicators_user_identity',
+        algorithm: 'btree',
+        columns: ['userIdentity'],
+      },
+    ],
+  },
+  {
+    indicatorId: t.u64().primaryKey().autoInc(),
+    connectionId: t.connectionId(),
+    tripId: t.u64(),
+    userIdentity: t.identity(),
+    targetType: t.string(),
+    targetId: t.string(),
+    updatedAt: t.timestamp(),
+  }
+);
+
 const spacetimedb = schema({
   users,
   trips,
@@ -148,12 +258,52 @@ const spacetimedb = schema({
   activities,
   labels,
   activityLabels,
+  activityComments,
+  activityHistory,
+  mapPresence,
+  typingIndicators,
 });
 
 export default spacetimedb;
 
 type Role = 'owner' | 'editor' | 'viewer';
 type TimeType = 'none' | 'exact' | 'ordered';
+type ActivityHistoryAction =
+  | 'created'
+  | 'updated_name'
+  | 'updated_description'
+  | 'updated_location'
+  | 'updated_date'
+  | 'updated_time'
+  | 'updated_order'
+  | 'added_label'
+  | 'removed_label'
+  | 'commented'
+  | 'deleted'
+  | 'restored';
+type TypingTargetType = 'activity' | 'comment' | 'trip';
+
+type ActivityFieldSnapshot = {
+  name: string;
+  description: string | undefined;
+  locationName: string | undefined;
+  address: string | undefined;
+  lat: number | undefined;
+  lng: number | undefined;
+  locationProvider: string | undefined;
+  providerPlaceId: string | undefined;
+  externalUrl: string | undefined;
+  date: string | undefined;
+  timeType: TimeType;
+  time: string | undefined;
+  order: number | undefined;
+};
+
+type ActivityFieldDiff = {
+  action: ActivityHistoryAction;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+};
 
 type MemberRow = {
   membershipId: bigint;
@@ -334,7 +484,7 @@ export const createActivity = spacetimedb.reducer(
     const timeType = parseTimeType(input.timeType);
     validateTime(timeType, input.time, input.order);
 
-    ctx.db.activities.insert({
+    const activity = ctx.db.activities.insert({
       activityId: 0n,
       tripId: input.tripId,
       name: requiredText(input.name, 'Activity name', 160),
@@ -354,6 +504,10 @@ export const createActivity = spacetimedb.reducer(
       createdAt: ctx.timestamp,
       updatedAt: ctx.timestamp,
       deletedAt: undefined,
+    });
+
+    recordHistory(ctx, activity.activityId, 'created', undefined, {
+      name: activity.name,
     });
   }
 );
@@ -380,6 +534,7 @@ export const updateActivity = spacetimedb.reducer(
     requireTripRole(ctx, activity.tripId, ['owner', 'editor']);
     const timeType = parseTimeType(input.timeType);
     validateTime(timeType, input.time, input.order);
+    const before = toActivityFieldSnapshot(activity);
 
     activity.name = requiredText(input.name, 'Activity name', 160);
     activity.description = optionalText(input.description, 5_000);
@@ -396,6 +551,17 @@ export const updateActivity = spacetimedb.reducer(
     activity.order = input.order;
     activity.updatedAt = ctx.timestamp;
     ctx.db.activities.activityId.update(activity);
+
+    const after = toActivityFieldSnapshot(activity);
+    for (const change of diffActivityFields(before, after)) {
+      recordHistory(
+        ctx,
+        activity.activityId,
+        change.action,
+        change.before,
+        change.after
+      );
+    }
   }
 );
 
@@ -408,6 +574,7 @@ export const reorderActivityWithinDay = spacetimedb.reducer(
   (ctx, { activityId, date, order }) => {
     const activity = getActiveActivity(ctx, activityId);
     requireTripRole(ctx, activity.tripId, ['owner', 'editor']);
+    const before = toActivityFieldSnapshot(activity);
 
     activity.date = requiredDate(date);
     activity.timeType = 'ordered';
@@ -415,6 +582,17 @@ export const reorderActivityWithinDay = spacetimedb.reducer(
     activity.order = order;
     activity.updatedAt = ctx.timestamp;
     ctx.db.activities.activityId.update(activity);
+
+    const after = toActivityFieldSnapshot(activity);
+    for (const change of diffActivityFields(before, after)) {
+      recordHistory(
+        ctx,
+        activity.activityId,
+        change.action,
+        change.before,
+        change.after
+      );
+    }
   }
 );
 
@@ -423,10 +601,20 @@ export const softDeleteActivity = spacetimedb.reducer(
   (ctx, { activityId }) => {
     const activity = getActiveActivity(ctx, activityId);
     requireTripRole(ctx, activity.tripId, ['owner', 'editor']);
+    const beforeDeletedAt = activity.deletedAt;
 
     activity.deletedAt = ctx.timestamp;
     activity.updatedAt = ctx.timestamp;
     ctx.db.activities.activityId.update(activity);
+    if (!beforeDeletedAt) {
+      recordHistory(
+        ctx,
+        activity.activityId,
+        'deleted',
+        { deletedAt: beforeDeletedAt },
+        { deletedAt: activity.deletedAt }
+      );
+    }
   }
 );
 
@@ -505,6 +693,8 @@ export const addActivityLabel = spacetimedb.reducer(
       labelId,
       createdAt: ctx.timestamp,
     });
+
+    recordHistory(ctx, activityId, 'added_label', undefined, { labelId });
   }
 );
 
@@ -520,6 +710,197 @@ export const removeActivityLabel = spacetimedb.reducer(
     for (const row of ctx.db.activityLabels.activity_labels_activity_id.filter(activityId)) {
       if (row.labelId === labelId) {
         ctx.db.activityLabels.activityLabelId.delete(row.activityLabelId);
+        recordHistory(ctx, activityId, 'removed_label', { labelId }, undefined);
+      }
+    }
+  }
+);
+
+export const addComment = spacetimedb.reducer(
+  {
+    activityId: t.u64(),
+    parentCommentId: t.u64().optional(),
+    body: t.string(),
+  },
+  (ctx, { activityId, parentCommentId, body }) => {
+    const activity = getActiveActivity(ctx, activityId);
+    requireTripRole(ctx, activity.tripId, ['owner', 'editor', 'viewer']);
+
+    if (parentCommentId !== undefined) {
+      const parent = requireComment(ctx, parentCommentId);
+      if (parent.activityId !== activityId) {
+        throw new SenderError('Reply parent must belong to the same activity');
+      }
+    }
+
+    const comment = ctx.db.activityComments.insert({
+      commentId: 0n,
+      activityId,
+      parentCommentId,
+      userIdentity: ctx.sender,
+      body: requiredText(body, 'Comment', 4_000),
+      createdAt: ctx.timestamp,
+      updatedAt: undefined,
+      deletedAt: undefined,
+    });
+
+    recordHistory(ctx, activityId, 'commented', undefined, {
+      commentId: comment.commentId,
+      parentCommentId: comment.parentCommentId,
+    });
+  }
+);
+
+export const editComment = spacetimedb.reducer(
+  {
+    commentId: t.u64(),
+    body: t.string(),
+  },
+  (ctx, { commentId, body }) => {
+    const comment = requireComment(ctx, commentId);
+    const activity = getActiveActivity(ctx, comment.activityId);
+    requireTripRole(ctx, activity.tripId, ['owner', 'editor', 'viewer']);
+
+    if (!comment.userIdentity.equals(ctx.sender)) {
+      throw new SenderError('Only the comment author can edit this comment');
+    }
+    if (comment.deletedAt) {
+      throw new SenderError('Deleted comments cannot be edited');
+    }
+
+    comment.body = requiredText(body, 'Comment', 4_000);
+    comment.updatedAt = ctx.timestamp;
+    ctx.db.activityComments.commentId.update(comment);
+  }
+);
+
+export const softDeleteComment = spacetimedb.reducer(
+  { commentId: t.u64() },
+  (ctx, { commentId }) => {
+    const comment = requireComment(ctx, commentId);
+    const activity = getActiveActivity(ctx, comment.activityId);
+    const isAuthor = comment.userIdentity.equals(ctx.sender);
+    if (!isAuthor) {
+      requireTripRole(ctx, activity.tripId, ['owner']);
+    }
+
+    comment.deletedAt = ctx.timestamp;
+    ctx.db.activityComments.commentId.update(comment);
+  }
+);
+
+export const upsertMapPresence = spacetimedb.reducer(
+  {
+    tripId: t.u64(),
+    lat: t.f64(),
+    lng: t.f64(),
+    color: t.string(),
+  },
+  (ctx, { tripId, lat, lng, color }) => {
+    requireTripRole(ctx, tripId, ['owner', 'editor', 'viewer']);
+    validateLatLng(lat, lng);
+    const cleanColor = validateColor(color);
+    const connectionId = requireConnectionId(ctx);
+
+    for (const presence of ctx.db.mapPresence.map_presence_connection_id.filter(connectionId)) {
+      if (presence.tripId === tripId) {
+        presence.lat = lat;
+        presence.lng = lng;
+        presence.color = cleanColor;
+        presence.updatedAt = ctx.timestamp;
+        ctx.db.mapPresence.presenceId.update(presence);
+        return;
+      }
+    }
+
+    ctx.db.mapPresence.insert({
+      presenceId: 0n,
+      connectionId,
+      tripId,
+      userIdentity: ctx.sender,
+      lat,
+      lng,
+      color: cleanColor,
+      updatedAt: ctx.timestamp,
+    });
+  }
+);
+
+export const clearMapPresence = spacetimedb.reducer(
+  { tripId: t.u64() },
+  (ctx, { tripId }) => {
+    requireTripRole(ctx, tripId, ['owner', 'editor', 'viewer']);
+    const connectionId = requireConnectionId(ctx);
+
+    for (const presence of ctx.db.mapPresence.map_presence_connection_id.filter(connectionId)) {
+      if (presence.tripId === tripId) {
+        ctx.db.mapPresence.presenceId.delete(presence.presenceId);
+      }
+    }
+  }
+);
+
+export const upsertTypingIndicator = spacetimedb.reducer(
+  {
+    tripId: t.u64(),
+    targetType: t.string(),
+    targetId: t.string(),
+  },
+  (ctx, { tripId, targetType, targetId }) => {
+    requireTripRole(ctx, tripId, ['owner', 'editor', 'viewer']);
+    const parsedTargetType = parseTargetType(targetType);
+    const parsedTargetId = normalizeTargetId(targetId, parsedTargetType);
+    const connectionId = requireConnectionId(ctx);
+
+    for (const indicator of ctx.db.typingIndicators.typing_indicators_user_identity.filter(
+      ctx.sender
+    )) {
+      if (
+        indicator.connectionId.equals(connectionId) &&
+        indicator.tripId === tripId &&
+        indicator.targetType === parsedTargetType &&
+        indicator.targetId === parsedTargetId
+      ) {
+        indicator.updatedAt = ctx.timestamp;
+        ctx.db.typingIndicators.indicatorId.update(indicator);
+        return;
+      }
+    }
+
+    ctx.db.typingIndicators.insert({
+      indicatorId: 0n,
+      connectionId,
+      tripId,
+      userIdentity: ctx.sender,
+      targetType: parsedTargetType,
+      targetId: parsedTargetId,
+      updatedAt: ctx.timestamp,
+    });
+  }
+);
+
+export const clearTypingIndicator = spacetimedb.reducer(
+  {
+    tripId: t.u64(),
+    targetType: t.string(),
+    targetId: t.string(),
+  },
+  (ctx, { tripId, targetType, targetId }) => {
+    requireTripRole(ctx, tripId, ['owner', 'editor', 'viewer']);
+    const parsedTargetType = parseTargetType(targetType);
+    const parsedTargetId = normalizeTargetId(targetId, parsedTargetType);
+    const connectionId = requireConnectionId(ctx);
+
+    for (const indicator of ctx.db.typingIndicators.typing_indicators_user_identity.filter(
+      ctx.sender
+    )) {
+      if (
+        indicator.connectionId.equals(connectionId) &&
+        indicator.tripId === tripId &&
+        indicator.targetType === parsedTargetType &&
+        indicator.targetId === parsedTargetId
+      ) {
+        ctx.db.typingIndicators.indicatorId.delete(indicator.indicatorId);
       }
     }
   }
@@ -548,6 +929,81 @@ export const labelsVisibility = spacetimedb.clientVisibilityFilter.sql(
 export const activityLabelsVisibility = spacetimedb.clientVisibilityFilter.sql(
   'SELECT activity_labels.* FROM activity_labels JOIN activities ON activity_labels.activity_id = activities.activity_id JOIN trip_members ON activities.trip_id = trip_members.trip_id WHERE trip_members.identity = :sender'
 );
+
+export const activityCommentsVisibility = spacetimedb.clientVisibilityFilter.sql(
+  'SELECT activity_comments.* FROM activity_comments JOIN activities ON activity_comments.activity_id = activities.activity_id JOIN trip_members ON activities.trip_id = trip_members.trip_id WHERE trip_members.identity = :sender'
+);
+
+export const activityHistoryVisibility = spacetimedb.clientVisibilityFilter.sql(
+  'SELECT activity_history.* FROM activity_history JOIN activities ON activity_history.activity_id = activities.activity_id JOIN trip_members ON activities.trip_id = trip_members.trip_id WHERE trip_members.identity = :sender'
+);
+
+export const mapPresenceVisibility = spacetimedb.clientVisibilityFilter.sql(
+  'SELECT map_presence.* FROM map_presence JOIN trip_members ON map_presence.trip_id = trip_members.trip_id WHERE trip_members.identity = :sender'
+);
+
+export const typingIndicatorsVisibility = spacetimedb.clientVisibilityFilter.sql(
+  'SELECT typing_indicators.* FROM typing_indicators JOIN trip_members ON typing_indicators.trip_id = trip_members.trip_id WHERE trip_members.identity = :sender'
+);
+
+export const clearEphemeralPresenceOnDisconnect = spacetimedb.clientDisconnected(
+  (ctx) => {
+    const connectionId = ctx.connectionId;
+    if (!connectionId) {
+      return;
+    }
+
+    for (const presence of ctx.db.mapPresence.map_presence_connection_id.filter(
+      connectionId
+    )) {
+      ctx.db.mapPresence.presenceId.delete(presence.presenceId);
+    }
+
+    for (const indicator of ctx.db.typingIndicators.typing_indicators_user_identity.filter(
+      ctx.sender
+    )) {
+      if (indicator.connectionId.equals(connectionId)) {
+        ctx.db.typingIndicators.indicatorId.delete(indicator.indicatorId);
+      }
+    }
+  }
+);
+
+function recordHistory(
+  ctx: Parameters<typeof createTrip>[0],
+  activityId: bigint,
+  action: ActivityHistoryAction,
+  before?: Record<string, unknown>,
+  after?: Record<string, unknown>
+) {
+  ctx.db.activityHistory.insert({
+    historyId: 0n,
+    activityId,
+    userIdentity: ctx.sender,
+    action: parseActivityHistoryAction(action),
+    beforeJson: before ? stringifySafe(before) : undefined,
+    afterJson: after ? stringifySafe(after) : undefined,
+    createdAt: ctx.timestamp,
+  });
+}
+
+function toActivityFieldSnapshot(activity: ReturnType<typeof getActiveActivity>): ActivityFieldSnapshot {
+  return {
+    name: activity.name,
+    description: activity.description,
+    locationName: activity.locationName,
+    address: activity.address,
+    lat: activity.lat,
+    lng: activity.lng,
+    locationProvider: activity.locationProvider,
+    providerPlaceId: activity.providerPlaceId,
+    externalUrl: activity.externalUrl,
+    date: activity.date,
+    timeType: activity.timeType as TimeType,
+    time: activity.time,
+    order: activity.order,
+  };
+}
 
 function ensureUserExists(ctx: Parameters<typeof createTrip>[0]) {
   if (!ctx.db.users.identity.find(ctx.sender)) {
@@ -580,6 +1036,21 @@ function getLabel(ctx: Parameters<typeof createTrip>[0], labelId: bigint) {
     throw new SenderError('Label not found');
   }
   return label;
+}
+
+function requireComment(ctx: Parameters<typeof createTrip>[0], commentId: bigint) {
+  const comment = ctx.db.activityComments.commentId.find(commentId);
+  if (!comment) {
+    throw new SenderError('Comment not found');
+  }
+  return comment;
+}
+
+function requireConnectionId(ctx: Parameters<typeof createTrip>[0]) {
+  if (!ctx.connectionId) {
+    throw new SenderError('Connection id is required');
+  }
+  return ctx.connectionId;
 }
 
 function requireTripRole(
@@ -652,6 +1123,41 @@ function parseTimeType(value: string): TimeType {
   }
 }
 
+export function parseActivityHistoryAction(value: string): ActivityHistoryAction {
+  switch (value) {
+    case 'created':
+    case 'updated_name':
+    case 'updated_description':
+    case 'updated_location':
+    case 'updated_date':
+    case 'updated_time':
+    case 'updated_order':
+    case 'added_label':
+    case 'removed_label':
+    case 'commented':
+    case 'deleted':
+    case 'restored':
+      return value;
+    default:
+      throw new SenderError('Invalid activity history action');
+  }
+}
+
+export function parseHistoryAction(value: string): ActivityHistoryAction {
+  return parseActivityHistoryAction(value);
+}
+
+export function parseTargetType(value: string): TypingTargetType {
+  switch (value) {
+    case 'activity':
+    case 'comment':
+    case 'trip':
+      return value;
+    default:
+      throw new SenderError('Invalid typing target type');
+  }
+}
+
 function optionalProvider(value: string | undefined): string | undefined {
   if (!value) {
     return undefined;
@@ -668,6 +1174,13 @@ function optionalProvider(value: string | undefined): string | undefined {
     default:
       throw new SenderError('Invalid location provider');
   }
+}
+
+function normalizeTargetId(value: string, targetType: TypingTargetType): string {
+  if (targetType === 'trip') {
+    return value.trim();
+  }
+  return requiredText(value, 'Target id', 128);
 }
 
 function requiredText(value: string, label: string, maxLength: number): string {
@@ -743,4 +1256,80 @@ function validateTime(
       return exhaustive;
     }
   }
+}
+
+export function validateLatLng(lat: number, lng: number) {
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new SenderError('Latitude must be between -90 and 90');
+  }
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
+    throw new SenderError('Longitude must be between -180 and 180');
+  }
+}
+
+export function validateColor(value: string): string {
+  return requiredText(value, 'Color', 16);
+}
+
+export function stringifySafe(value: unknown): string {
+  return JSON.stringify(value, (_key, currentValue) => {
+    if (typeof currentValue === 'bigint') {
+      return currentValue.toString();
+    }
+    return currentValue;
+  });
+}
+
+export function diffActivityFields(
+  before: ActivityFieldSnapshot,
+  after: ActivityFieldSnapshot
+): Array<ActivityFieldDiff> {
+  const diffs: Array<ActivityFieldDiff> = [];
+
+  appendFieldDiff(diffs, before, after, 'updated_name', ['name']);
+  appendFieldDiff(diffs, before, after, 'updated_description', ['description']);
+  appendFieldDiff(diffs, before, after, 'updated_location', [
+    'locationName',
+    'address',
+    'lat',
+    'lng',
+    'locationProvider',
+    'providerPlaceId',
+    'externalUrl',
+  ]);
+  appendFieldDiff(diffs, before, after, 'updated_date', ['date']);
+  appendFieldDiff(diffs, before, after, 'updated_time', ['timeType', 'time']);
+  appendFieldDiff(diffs, before, after, 'updated_order', ['order']);
+
+  return diffs;
+}
+
+function appendFieldDiff<K extends keyof ActivityFieldSnapshot>(
+  diffs: Array<ActivityFieldDiff>,
+  before: ActivityFieldSnapshot,
+  after: ActivityFieldSnapshot,
+  action: ActivityHistoryAction,
+  fields: ReadonlyArray<K>
+) {
+  const beforeData: Record<string, unknown> = {};
+  const afterData: Record<string, unknown> = {};
+  let changed = false;
+
+  for (const field of fields) {
+    if (before[field] !== after[field]) {
+      changed = true;
+      beforeData[field as string] = before[field];
+      afterData[field as string] = after[field];
+    }
+  }
+
+  if (!changed) {
+    return;
+  }
+
+  diffs.push({
+    action,
+    before: beforeData,
+    after: afterData,
+  });
 }
