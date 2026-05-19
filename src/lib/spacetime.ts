@@ -9,6 +9,28 @@ export const SPACETIME_SERVER_URL =
 
 export const SPACETIME_TOKEN_KEY = `${SPACETIME_SERVER_URL}/${SPACETIME_DATABASE_NAME}/auth_token`
 
+type StorageRead = Pick<Storage, "getItem">
+type StorageWrite = Pick<Storage, "setItem">
+
+export function readStoredSpacetimeAuthToken(
+  storage: StorageRead | null | undefined,
+  key: string
+): string | undefined {
+  if (!storage) {
+    return undefined
+  }
+
+  return storage.getItem(key) ?? undefined
+}
+
+export function writeStoredSpacetimeAuthToken(
+  storage: StorageWrite,
+  key: string,
+  token: string
+): void {
+  storage.setItem(key, token)
+}
+
 export function createSpacetimeConnectionBuilder({
   user,
 }: {
@@ -19,17 +41,24 @@ export function createSpacetimeConnectionBuilder({
     image?: string | null
   }
 }) {
-  const storedToken =
-    typeof window === "undefined"
-      ? undefined
-      : (window.localStorage.getItem(SPACETIME_TOKEN_KEY) ?? undefined)
+  const browserStorage =
+    typeof window === "undefined" ? undefined : window.localStorage
+
+  const storedToken = readStoredSpacetimeAuthToken(
+    browserStorage,
+    SPACETIME_TOKEN_KEY
+  )
 
   return DbConnection.builder()
     .withUri(SPACETIME_SERVER_URL)
     .withDatabaseName(SPACETIME_DATABASE_NAME)
     .withToken(storedToken)
     .onConnect((conn, _identity, token) => {
-      window.localStorage.setItem(SPACETIME_TOKEN_KEY, token)
+      writeStoredSpacetimeAuthToken(
+        window.localStorage,
+        SPACETIME_TOKEN_KEY,
+        token
+      )
       conn.reducers.ensureUserProfile({
         authUserId: user.id,
         displayName: user.name || user.email,
