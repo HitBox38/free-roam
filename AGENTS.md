@@ -696,12 +696,12 @@ When working on this project:
 ### Environment setup
 
 - **Bun** is the package manager (`bun.lock` at root). Installed to `~/.bun/bin/bun`.
-- **SpacetimeDB CLI** (`spacetime`) is installed at `~/.local/bin/spacetime`. Both need to be on `$PATH`:
+- **SpacetimeDB CLI** (`spacetime`) is installed at `~/.local/bin/spacetime`.
+- Both are added to PATH via `~/.bashrc`. If you get "command not found", ensure PATH includes both:
   ```bash
-  export BUN_INSTALL="$HOME/.bun"
-  export PATH="$HOME/.local/bin:$BUN_INSTALL/bin:$PATH"
+  export PATH="$HOME/.local/bin:$HOME/.bun/bin:$PATH"
   ```
-- The update script already runs `bun install` for both the root and `spacetimedb/spacetimedb/`.
+- The update script runs `bun install` for both the root and `spacetimedb/spacetimedb/`, and installs Bun/SpacetimeDB CLI if missing.
 
 ### Running the dev server
 
@@ -730,13 +730,15 @@ BETTER_AUTH_SECRET=<any 32+ char hex string>
 
 ### SpacetimeDB (external)
 
-SpacetimeDB is a hosted service (MainCloud). The app connects to `free-roam-97kss` on `maincloud.spacetimedb.com` via WebSocket. Trip/activity CRUD depends on SpacetimeDB reducers being published. Without `spacetime login` credentials, the SpacetimeDB connection will fail — auth and the UI still work, but trip data cannot be persisted.
+SpacetimeDB is a hosted service (MainCloud). The app connects to `free-roam-97kss` on `maincloud.spacetimedb.com` via WebSocket. Trip/activity CRUD depends on SpacetimeDB reducers being published. Without `spacetime login`, the SpacetimeDB connection will fail — auth and the UI still work, but trip data cannot be persisted.
 
-To publish the module (requires credentials):
+To publish the module (requires interactive browser OAuth):
 ```bash
-spacetime login
-bun run spacetime:dev
+spacetime login              # opens browser for OAuth — use --token <tok> if you have one
+bun run spacetime:dev        # publishes module + generates client bindings
 ```
+
+Alternatively, use `spacetime login --token <your-token>` to bypass the browser flow if you have a SpacetimeDB auth token.
 
 ### Key commands (see README for full list)
 
