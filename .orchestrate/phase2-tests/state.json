@@ -60,13 +60,13 @@
       "handoffPath": "handoffs/phase1-vitest-coverage.md",
       "startedAt": "2026-05-19T10:52:41.330Z",
       "finishedAt": "2026-05-19T10:56:35.590Z",
-      "lastUpdate": "2026-05-19T10:56:35.591Z",
+      "lastUpdate": "2026-05-19T10:56:36.751Z",
       "note": null,
       "attempts": 1,
       "slackTs": null,
       "prNumber": 3,
       "failureMode": null,
-      "verification": null
+      "verification": "unit-test-verified"
     }
   ],
   "attention": [
@@ -77,6 +77,18 @@
     {
       "at": "2026-05-19T10:53:55.659Z",
       "message": "phase2-backend: respawned by self-planner (was error)"
+    },
+    {
+      "at": "2026-05-19T10:56:36.585Z",
+      "message": "phase1-vitest-coverage: `## Measurements` had 2 unparseable line(s); first: **new vitest tests:** +35"
+    },
+    {
+      "at": "2026-05-19T10:56:36.750Z",
+      "message": "phase1-vitest-coverage: measurement_mismatch total vitest tests [parse-failed] regex did not match command stdout"
+    },
+    {
+      "at": "2026-05-19T10:56:36.751Z",
+      "message": "phase1-vitest-coverage: verification self-reported (unit-test-verified)"
     }
   ]
 }
