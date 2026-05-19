@@ -688,3 +688,71 @@ When working on this project:
 9. Treat **live map cursors/presence** as a core feature and a **budget-sensitive** subsystem.
 10. Ask for clarification before making major product or architecture changes.
 11. Use **Bun** for installs and scripts (`bun install`, `bun run dev`, `bun run lint`, etc.); do not assume pnpm or npm unless the repo explicitly documents otherwise.
+
+---
+
+## Cursor Cloud specific instructions
+
+### Environment setup
+
+- **Bun** is the package manager (`bun.lock` at root). Installed to `~/.bun/bin/bun`.
+- **SpacetimeDB CLI** (`spacetime`) is installed at `~/.local/bin/spacetime`. Both need to be on `$PATH`:
+  ```bash
+  export BUN_INSTALL="$HOME/.bun"
+  export PATH="$HOME/.local/bin:$BUN_INSTALL/bin:$PATH"
+  ```
+- The update script already runs `bun install` for both the root and `spacetimedb/spacetimedb/`.
+
+### Running the dev server
+
+```bash
+bun run dev
+```
+
+This starts the Vite/TanStack Start server on **port 3000**. The server uses `.env.local` for environment variables.
+
+### Local auth database
+
+Better Auth uses a local SQLite file (`file:local.db`) via `@libsql/client`. If the file doesn't exist, run:
+
+```bash
+bun run db:migrate
+```
+
+This creates and migrates `local.db` in the workspace root. The `.env.local` file should contain:
+
+```
+TURSO_DATABASE_URL=file:local.db
+TURSO_AUTH_TOKEN=local-dev-token
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=<any 32+ char hex string>
+```
+
+### SpacetimeDB (external)
+
+SpacetimeDB is a hosted service (MainCloud). The app connects to `free-roam-97kss` on `maincloud.spacetimedb.com` via WebSocket. Trip/activity CRUD depends on SpacetimeDB reducers being published. Without `spacetime login` credentials, the SpacetimeDB connection will fail — auth and the UI still work, but trip data cannot be persisted.
+
+To publish the module (requires credentials):
+```bash
+spacetime login
+bun run spacetime:dev
+```
+
+### Key commands (see README for full list)
+
+| Task | Command |
+|------|---------|
+| Dev server | `bun run dev` |
+| Lint | `bun run lint` |
+| Type-check | `bun run typecheck` |
+| Tests | `bun run test` |
+| Build | `bun run build` |
+| DB migrations | `bun run db:migrate` |
+| SpacetimeDB generate bindings | `bun run spacetime:generate` |
+
+### Known gotchas
+
+- **SSR hydration warning**: `auth-client.ts` references `window` at module scope, causing an SSR error that triggers client-side fallback. This is a known issue and does not affect functionality.
+- **Vitest exit delay**: `bun run test` may print a "hanging-process" warning after tests pass. Tests still complete correctly; it's a Vite server cleanup timing issue.
+- **SpacetimeDB console errors**: Expected in local dev without published modules. Auth and UI are fully functional independently.
+- **`local.db` is gitignored**: The file is created by `bun run db:migrate` and should not be committed.
