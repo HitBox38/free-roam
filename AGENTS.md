@@ -1,6 +1,6 @@
 ## Project Overview
 
-This project is a collaborative trip planning web app.
+**FreeRoam** is a collaborative trip planning web app.
 
 The goal is to let users plan trips together in real time, with a workflow that feels inspired by tools like Figma, Monday, Jira, ClickUp, Asana, and calendar/map planning apps.
 

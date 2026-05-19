@@ -5,6 +5,7 @@ import { useSpacetimeDB, useTable } from "spacetimedb/react"
 import type { Identity } from "spacetimedb"
 
 import type { DbConnection } from "@/module_bindings"
+import { APP_NAME } from "@/lib/app-brand"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -50,6 +51,7 @@ export function TripsOverview() {
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-5xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-2">
+        <p className="text-sm font-semibold tracking-tight">{APP_NAME}</p>
         <p className="text-sm text-muted-foreground">
           Your SpacetimeDB identity: {formatIdentity(identity)}
         </p>
