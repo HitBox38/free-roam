@@ -43,7 +43,7 @@
       "verify": "Run `bun install`, `cd spacetimedb/spacetimedb && bun install`, then from the repo root `bun run typecheck`, `bun run lint`, `bun run test`, and `bun run spacetime:build`. All four must exit 0. Confirm `src/module_bindings/` has uncommitted regenerated changes before committing.",
       "openPR": true,
       "maxAttempts": 3,
-      "model": "gpt-5.5-high-fast"
+      "model": "gpt-5.3-codex-high-fast"
     },
     {
       "name": "phase2-frontend-collab",
@@ -97,7 +97,7 @@
       "startingRef": "orch/phase2-tests/phase2-backend",
       "openPR": true,
       "maxAttempts": 3,
-      "model": "gpt-5.5-high-fast",
+      "model": "gpt-5.3-codex-high-fast",
       "measurements": [
         {
           "name": "presence reducer calls per second under continuous motion",
