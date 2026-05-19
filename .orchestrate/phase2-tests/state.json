@@ -41,11 +41,11 @@
       "finishedAt": null,
       "lastUpdate": "2026-05-19T11:05:28.803Z",
       "note": null,
+      "attempts": 1,
       "slackTs": null,
       "prNumber": null,
       "failureMode": null,
-      "verification": null,
-      "attempts": 1
+      "verification": null
     },
     {
       "name": "phase1-vitest-coverage",
