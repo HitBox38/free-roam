@@ -10,14 +10,14 @@
       "agentId": null,
       "runId": null,
       "parentAgentId": null,
-      "status": "pending",
+      "status": "running",
       "resultStatus": null,
       "handoffPath": null,
-      "startedAt": null,
+      "startedAt": "2026-05-19T10:54:07.504Z",
       "finishedAt": null,
-      "lastUpdate": "2026-05-19T10:53:54.675Z",
+      "lastUpdate": "2026-05-19T10:54:07.504Z",
       "note": "respawned by self-planner (was error; attempts=1)",
-      "attempts": 1,
+      "attempts": 2,
       "slackTs": null,
       "prNumber": null,
       "failureMode": null,
@@ -73,6 +73,10 @@
     {
       "at": "2026-05-19T10:52:41.329Z",
       "message": "phase2-backend: spawn failed after 3 transient sub-attempts: l: [invalid_model] Model 'gpt-5.5' does not match a known variant. Call GET /v1/models to list valid id+params combinations. run `bun cli.ts models --check` to re-probe the catalog against /v1/agents."
+    },
+    {
+      "at": "2026-05-19T10:53:55.659Z",
+      "message": "phase2-backend: respawned by self-planner (was error)"
     }
   ]
 }
