@@ -14,6 +14,7 @@ export const tripActions = [
 export const activityTimeTypes = ["none", "exact", "ordered"] as const
 export const locationProviders = [
   "manual",
+  "geoapify",
   "osm",
   "google",
   "apple",

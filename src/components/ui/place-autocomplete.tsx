@@ -1,7 +1,7 @@
-
 import { RiMapPinLine, RiSearchLine } from "@remixicon/react"
 import * as React from "react"
-import type { BBox, Feature, FeatureCollection, Point } from "geojson"
+
+import type { GeocodedPlace } from "@/lib/geocoding/geoapify"
 import { cn } from "@/lib/utils"
 import {
     Command,
@@ -17,32 +17,15 @@ import {
 } from "@/components/ui/input-group"
 import { Spinner } from "@/components/ui/spinner"
 
-interface PlaceFeatureProperties {
-    osm_id: number
-    osm_type: "N" | "W" | "R"
-    osm_key: string
-    osm_value: string
-    type: string
-    name?: string
-    housenumber?: string
-    street?: string
-    locality?: string
-    district?: string
-    postcode?: string
-    city?: string
-    county?: string
-    state?: string
-    country?: string
-    countrycode?: string
-    extent?: [number, number, number, number]
-    extra?: Record<string, string>
+type BBox = [number, number, number, number]
+
+interface PlaceSearchResponse {
+    places: Array<GeocodedPlace>
 }
-type PlaceFeature = Feature<Point, PlaceFeatureProperties>
-type PlaceFeatureCollection = FeatureCollection<Point, PlaceFeatureProperties>
 
 /**
- * Query parameters for Photon geocoding API
- * @see https://github.com/komoot/photon#photon-api
+ * Query parameters for the server-side Geoapify autocomplete proxy.
+ * @see https://apidocs.geoapify.com/docs/geocoding/address-autocomplete/
  */
 interface PlaceSearchOptions {
     /** Search text (address, place name, or POI) */
@@ -60,15 +43,6 @@ interface PlaceSearchOptions {
     lat?: number
     /** Longitude used to bias results toward a specific location */
     lon?: number
-    /**
-     * Zoom level used for location biasing.
-     * Higher values increase locality.
-     */
-    zoom?: number
-    /**
-     * Strength of the location bias.
-     */
-    locationBiasScale?: number
 }
 
 interface PlaceAutocompleteProps
@@ -78,38 +52,8 @@ interface PlaceAutocompleteProps
     value?: string
     defaultValue?: string
     onChange?: (value: string) => void
-    onPlaceSelect?: (feature: PlaceFeature) => void
-    onResultsChange?: (results: Array<PlaceFeature>) => void
-}
-
-function formatAddress(properties: PlaceFeatureProperties) {
-    const parts = []
-
-    if (properties.name) {
-        parts.push(properties.name)
-    }
-
-    if (properties.housenumber && properties.street) {
-        parts.push(`${properties.housenumber} ${properties.street}`)
-    } else if (properties.street) {
-        parts.push(properties.street)
-    }
-
-    if (properties.city) {
-        parts.push(properties.city)
-    } else if (properties.locality) {
-        parts.push(properties.locality)
-    }
-
-    if (properties.state && properties.state !== properties.city) {
-        parts.push(properties.state)
-    }
-
-    if (properties.country) {
-        parts.push(properties.country)
-    }
-
-    return [...new Set(parts)].join(", ")
+    onPlaceSelect?: (place: GeocodedPlace) => void
+    onResultsChange?: (results: Array<GeocodedPlace>) => void
 }
 
 function buildSearchUrl({
@@ -118,12 +62,10 @@ function buildSearchUrl({
     lang,
     lat,
     limit,
-    locationBiasScale,
     lon,
-    zoom,
 }: PlaceSearchOptions) {
-    const url = new URL("https://photon.komoot.io/api")
-    url.searchParams.set("q", query)
+    const url = new URL("/api/geocoding/search", window.location.origin)
+    url.searchParams.set("text", query)
 
     if (lang) {
         url.searchParams.set("lang", lang)
@@ -134,20 +76,11 @@ function buildSearchUrl({
     }
 
     if (bbox) {
-        url.searchParams.set("bbox", bbox.join(","))
+        url.searchParams.set("filter", `rect:${bbox.join(",")}`)
     }
 
     if (lat !== undefined && lon !== undefined) {
-        url.searchParams.set("lat", String(lat))
-        url.searchParams.set("lon", String(lon))
-    }
-
-    if (zoom !== undefined) {
-        url.searchParams.set("zoom", String(zoom))
-    }
-
-    if (locationBiasScale !== undefined) {
-        url.searchParams.set("location_bias_scale", String(locationBiasScale))
+        url.searchParams.set("bias", `proximity:${lon},${lat}`)
     }
 
     return String(url)
@@ -171,7 +104,7 @@ function usePlaceSearch({
 }: {
     debounceMs: number
 } & PlaceSearchOptions) {
-    const [results, setResults] = React.useState<Array<PlaceFeature>>([])
+    const [results, setResults] = React.useState<Array<GeocodedPlace>>([])
     const [isLoading, setIsLoading] = React.useState(false)
     const [error, setError] = React.useState<Error | null>(null)
     const [hasSearched, setHasSearched] = React.useState(false)
@@ -201,19 +134,12 @@ function usePlaceSearch({
 
                 if (!response.ok) {
                     throw new Error(
-                        `Photon API error: ${response.status} ${response.statusText}`
+                        `Geoapify search error: ${response.status} ${response.statusText}`
                     )
                 }
 
-                const data: PlaceFeatureCollection = await response.json()
-                const addressOsmIds = new Set()
-                const dedupedFeatures = data.features.filter((feature) => {
-                    const id = feature.properties.osm_id
-                    if (addressOsmIds.has(id)) return false
-                    addressOsmIds.add(id)
-                    return true
-                })
-                setResults(dedupedFeatures)
+                const data: PlaceSearchResponse = await response.json()
+                setResults(data.places)
             } catch (err) {
                 if (err instanceof Error && err.name !== "AbortError") {
                     setError(err)
@@ -234,8 +160,6 @@ function usePlaceSearch({
         props.bbox,
         props.lat,
         props.lon,
-        props.zoom,
-        props.locationBiasScale,
     ])
 
     return { results, isLoading, error, hasSearched }
@@ -248,8 +172,6 @@ function PlaceAutocomplete({
     bbox,
     lat,
     lon,
-    zoom,
-    locationBiasScale,
     className,
     value: controlledValue,
     defaultValue = "",
@@ -272,8 +194,6 @@ function PlaceAutocomplete({
         bbox,
         lat,
         lon,
-        zoom,
-        locationBiasScale,
     })
 
     React.useEffect(() => {
@@ -338,38 +258,30 @@ function PlaceAutocomplete({
                         {results.length > 0 && (
                             <CommandGroup>
                                 {results.map((feature) => {
-                                    const formattedAddress = formatAddress(
-                                        feature.properties
-                                    )
                                     return (
                                         <CommandItem
-                                            key={feature.properties.osm_id}
-                                            value={String(
-                                                feature.properties.osm_id
-                                            )}
+                                            key={feature.id}
+                                            value={feature.id}
                                             onSelect={() => {
                                                 if (!isControlled) {
                                                     setInternalValue(
-                                                        formattedAddress
+                                                        feature.address
                                                     )
                                                 }
 
                                                 setSearchQuery("")
                                                 controlledOnChange?.(
-                                                    formattedAddress
+                                                    feature.address
                                                 )
                                                 onPlaceSelect?.(feature)
                                             }}>
                                             <RiMapPinLine />
                                             <div className="flex flex-col items-start text-start">
                                                 <span className="font-medium">
-                                                    {feature.properties.name ||
-                                                        feature.properties
-                                                            .street ||
-                                                        "Unknown"}
+                                                    {feature.name}
                                                 </span>
                                                 <span className="text-muted-foreground text-xs">
-                                                    {formattedAddress}
+                                                    {feature.address}
                                                 </span>
                                             </div>
                                         </CommandItem>
@@ -384,4 +296,4 @@ function PlaceAutocomplete({
     )
 }
 
-export { PlaceAutocomplete, type PlaceAutocompleteProps, type PlaceFeature }
+export { PlaceAutocomplete, type PlaceAutocompleteProps, type GeocodedPlace }

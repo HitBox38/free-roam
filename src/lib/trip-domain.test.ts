@@ -192,6 +192,23 @@ describe("activityInputSchema", () => {
     expect(result.success).toBe(true)
   })
 
+  test("accepts Geoapify locations with provider metadata", () => {
+    const result = activityInputSchema.safeParse({
+      name: "Tower visit",
+      timeType: "none",
+      locationName: "Eiffel Tower",
+      address: "Eiffel Tower, Paris, France",
+      lat: 48.8584,
+      lng: 2.2945,
+      locationProvider: "geoapify",
+      providerPlaceId: "geoapify-place-id",
+      externalUrl:
+        "https://www.openstreetmap.org/?mlat=48.8584&mlon=2.2945#map=16/48.8584/2.2945",
+    })
+
+    expect(result.success).toBe(true)
+  })
+
   test("requires order when time type is ordered", () => {
     expect(
       activityInputSchema.safeParse({

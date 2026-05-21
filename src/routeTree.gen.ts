@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedTripsRouteImport } from './routes/_authenticated/trips'
 import { Route as ApiSpacetimeTokenRouteImport } from './routes/api/spacetime/token'
+import { Route as ApiGeocodingSearchRouteImport } from './routes/api/geocoding/search'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedTripsTripIdRouteImport } from './routes/_authenticated/trips/$tripId'
 
@@ -41,6 +42,11 @@ const ApiSpacetimeTokenRoute = ApiSpacetimeTokenRouteImport.update({
   path: '/api/spacetime/token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGeocodingSearchRoute = ApiGeocodingSearchRouteImport.update({
+  id: '/api/geocoding/search',
+  path: '/api/geocoding/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/trips': typeof AuthenticatedTripsRouteWithChildren
   '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/geocoding/search': typeof ApiGeocodingSearchRoute
   '/api/spacetime/token': typeof ApiSpacetimeTokenRoute
 }
 export interface FileRoutesByTo {
@@ -67,6 +74,7 @@ export interface FileRoutesByTo {
   '/trips': typeof AuthenticatedTripsRouteWithChildren
   '/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/geocoding/search': typeof ApiGeocodingSearchRoute
   '/api/spacetime/token': typeof ApiSpacetimeTokenRoute
 }
 export interface FileRoutesById {
@@ -77,6 +85,7 @@ export interface FileRoutesById {
   '/_authenticated/trips': typeof AuthenticatedTripsRouteWithChildren
   '/_authenticated/trips/$tripId': typeof AuthenticatedTripsTripIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/geocoding/search': typeof ApiGeocodingSearchRoute
   '/api/spacetime/token': typeof ApiSpacetimeTokenRoute
 }
 export interface FileRouteTypes {
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/trips'
     | '/trips/$tripId'
     | '/api/auth/$'
+    | '/api/geocoding/search'
     | '/api/spacetime/token'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
     | '/trips'
     | '/trips/$tripId'
     | '/api/auth/$'
+    | '/api/geocoding/search'
     | '/api/spacetime/token'
   id:
     | '__root__'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '/_authenticated/trips'
     | '/_authenticated/trips/$tripId'
     | '/api/auth/$'
+    | '/api/geocoding/search'
     | '/api/spacetime/token'
   fileRoutesById: FileRoutesById
 }
@@ -112,6 +124,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   SignInRoute: typeof SignInRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiGeocodingSearchRoute: typeof ApiGeocodingSearchRoute
   ApiSpacetimeTokenRoute: typeof ApiSpacetimeTokenRoute
 }
 
@@ -150,6 +163,13 @@ declare module '@tanstack/react-router' {
       path: '/api/spacetime/token'
       fullPath: '/api/spacetime/token'
       preLoaderRoute: typeof ApiSpacetimeTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/geocoding/search': {
+      id: '/api/geocoding/search'
+      path: '/api/geocoding/search'
+      fullPath: '/api/geocoding/search'
+      preLoaderRoute: typeof ApiGeocodingSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -197,6 +217,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   SignInRoute: SignInRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiGeocodingSearchRoute: ApiGeocodingSearchRoute,
   ApiSpacetimeTokenRoute: ApiSpacetimeTokenRoute,
 }
 export const routeTree = rootRouteImport
