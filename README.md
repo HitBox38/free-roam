@@ -607,6 +607,10 @@ Additional variables may be needed for:
 
 Do not commit secrets to the repository.
 
+For Vercel production, `TURSO_DATABASE_URL` must point to a persistent
+Turso/libSQL database such as `libsql://...`; `file:local.db` and
+`local-dev-token` are local-only and will be rejected at runtime.
+
 ---
 
 ## Design Principles
