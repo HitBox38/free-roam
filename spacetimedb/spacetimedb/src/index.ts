@@ -888,7 +888,7 @@ export const usersVisibility = spacetimedb.clientVisibilityFilter.sql(
 );
 
 export const tripsVisibility = spacetimedb.clientVisibilityFilter.sql(
-  'SELECT trips.* FROM trips JOIN trip_members ON trips.trip_id = trip_members.trip_id WHERE trip_members.identity = :sender'
+  'SELECT trips.* FROM trips WHERE trips.owner_identity = :sender'
 );
 
 export const tripMembersVisibility = spacetimedb.clientVisibilityFilter.sql(
