@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
-import type { AnchorHTMLAttributes, ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+
+import { TripsOverview } from "./trips-overview"
+import type { AnchorHTMLAttributes, ReactNode } from "react"
 
 type MockIdentity = {
   equals: (other: MockIdentity) => boolean
@@ -26,7 +28,7 @@ const spacetimeMock = vi.hoisted(() => {
     conn: MockConnection | null
     identity: MockIdentity | undefined
     isActive: boolean
-    rows: Record<string, readonly unknown[]>
+    rows: Record<string, ReadonlyArray<unknown>>
     ready: Record<string, boolean>
   } = {
     conn: null,
@@ -96,8 +98,6 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }))
 
-import { TripsOverview } from "./trips-overview"
-
 function createIdentity(hex: string): MockIdentity {
   const identity: MockIdentity = {
     equals: (other) => other.toHexString() === hex,
@@ -153,9 +153,13 @@ describe("TripsOverview", () => {
 
     render(<TripsOverview />)
 
-    const title = screen.getByLabelText("Title") as HTMLInputElement
+    const title = screen.getByLabelText("Title")
+    if (!(title instanceof HTMLInputElement) || !title.form) {
+      throw new Error("Expected the title field to be inside the create-trip form")
+    }
+
     fireEvent.change(title, { target: { value: "Tokyo spring" } })
-    fireEvent.submit(title.form as HTMLFormElement)
+    fireEvent.submit(title.form)
 
     await waitFor(() => {
       expect(createTrip).toHaveBeenCalledWith({
