@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form"
 import { Link } from "@tanstack/react-router"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useSpacetimeDB, useTable } from "spacetimedb/react"
 import type { Identity } from "spacetimedb"
 
@@ -14,9 +14,29 @@ import { tables } from "@/module_bindings"
 export function TripsOverview() {
   const spacetime = useSpacetimeDB()
   const conn = spacetime.getConnection() as DbConnection | null
-  const [trips] = useTable(tables.trips)
-  const [memberships] = useTable(tables.tripMembers)
+  const [trips, tripsReady] = useTable(tables.trips)
+  const [memberships, membershipsReady] = useTable(tables.tripMembers)
+  const [users, usersReady] = useTable(tables.users)
   const identity = spacetime.identity
+  const [createError, setCreateError] = useState<string | undefined>()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const hasUserProfile = useMemo(
+    () =>
+      identity ? users.some((user) => user.identity.equals(identity)) : false,
+    [identity, users]
+  )
+
+  const canCreateTrip = Boolean(
+    conn &&
+      spacetime.isActive &&
+      identity &&
+      tripsReady &&
+      membershipsReady &&
+      usersReady &&
+      hasUserProfile &&
+      !isSubmitting
+  )
 
   const visibleTrips = useMemo(() => {
     if (!identity) {
@@ -39,12 +59,26 @@ export function TripsOverview() {
       title: "",
       description: "",
     },
-    onSubmit: ({ value, formApi }) => {
-      conn?.reducers.createTrip({
-        title: value.title,
-        description: value.description || undefined,
-      })
-      formApi.reset()
+    onSubmit: async ({ value, formApi }) => {
+      if (!conn || !canCreateTrip) {
+        setCreateError("Trip data is still connecting. Try again in a moment.")
+        return
+      }
+
+      setIsSubmitting(true)
+      setCreateError(undefined)
+
+      try {
+        await conn.reducers.createTrip({
+          title: value.title,
+          description: value.description || undefined,
+        })
+        formApi.reset()
+      } catch (error) {
+        setCreateError(formatCreateTripError(error))
+      } finally {
+        setIsSubmitting(false)
+      }
     },
   })
 
@@ -127,13 +161,26 @@ export function TripsOverview() {
               </label>
             )}
           />
-          <Button type="submit" disabled={!conn}>
-            Create trip
+          <Button type="submit" disabled={!canCreateTrip}>
+            {isSubmitting ? "Creating..." : "Create trip"}
           </Button>
+          {createError && (
+            <p className="text-sm text-destructive" role="alert">
+              {createError}
+            </p>
+          )}
         </form>
       </section>
     </div>
   )
+}
+
+function formatCreateTripError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+
+  return "Could not create the trip. Please try again."
 }
 
 function formatIdentity(identity: Identity | undefined): string {
