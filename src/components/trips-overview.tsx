@@ -1,6 +1,6 @@
 import { useForm } from "@tanstack/react-form"
 import { Link } from "@tanstack/react-router"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSpacetimeDB, useTable } from "spacetimedb/react"
 import type { Identity } from "spacetimedb"
 
@@ -38,6 +38,74 @@ export function TripsOverview() {
     !isSubmitting
   )
 
+  const createTripDebugState = useMemo(() => {
+    const blockers: Array<string> = []
+
+    if (!conn) {
+      blockers.push("missing_connection")
+    }
+    if (!spacetime.isActive) {
+      blockers.push("spacetime_inactive")
+    }
+    if (!identity) {
+      blockers.push("missing_identity")
+    }
+    if (tripsLoading) {
+      blockers.push("trips_loading")
+    }
+    if (membershipsLoading) {
+      blockers.push("memberships_loading")
+    }
+    if (usersLoading) {
+      blockers.push("users_loading")
+    }
+    if (!hasUserProfile) {
+      blockers.push("missing_user_profile")
+    }
+    if (isSubmitting) {
+      blockers.push("submitting")
+    }
+
+    return {
+      canCreateTrip,
+      blockers,
+      connectionPresent: Boolean(conn),
+      hasCreateTripReducer: Boolean(conn?.reducers.createTrip),
+      spacetimeActive: spacetime.isActive,
+      identity: formatIdentity(identity),
+      loading: {
+        trips: tripsLoading,
+        memberships: membershipsLoading,
+        users: usersLoading,
+      },
+      rowCounts: {
+        trips: trips.length,
+        memberships: memberships.length,
+        users: users.length,
+      },
+      hasUserProfile,
+      userProfileIdentities: users.map((user) => user.identity.toHexString()),
+      isSubmitting,
+    }
+  }, [
+    canCreateTrip,
+    conn,
+    hasUserProfile,
+    identity,
+    isSubmitting,
+    memberships.length,
+    membershipsLoading,
+    spacetime.isActive,
+    trips.length,
+    tripsLoading,
+    users,
+    usersLoading,
+  ])
+
+  useEffect(() => {
+    console.info("[TripsOverview] create trip state", createTripDebugState)
+  }, [createTripDebugState])
+
   const visibleTrips = useMemo(() => {
     if (!identity) {
       return []
@@ -60,7 +128,14 @@ export function TripsOverview() {
       description: "",
     },
     onSubmit: async ({ value, formApi }) => {
+      console.info("[TripsOverview] create trip submit", {
+        titleLength: value.title.length,
+        hasDescription: Boolean(value.description),
+        state: createTripDebugState,
+      })
+
       if (!conn || !canCreateTrip) {
+        console.warn("[TripsOverview] create trip blocked", createTripDebugState)
         setCreateError("Trip data is still connecting. Try again in a moment.")
         return
       }
@@ -69,12 +144,21 @@ export function TripsOverview() {
       setCreateError(undefined)
 
       try {
+        console.info("[TripsOverview] calling createTrip reducer", {
+          titleLength: value.title.length,
+          hasDescription: Boolean(value.description),
+        })
         await conn.reducers.createTrip({
           title: value.title,
           description: value.description || undefined,
         })
+        console.info("[TripsOverview] createTrip reducer resolved")
         formApi.reset()
       } catch (error) {
+        console.error("[TripsOverview] createTrip reducer failed", {
+          error,
+          state: createTripDebugState,
+        })
         setCreateError(formatCreateTripError(error))
       } finally {
         setIsSubmitting(false)
