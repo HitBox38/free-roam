@@ -29,7 +29,7 @@ const spacetimeMock = vi.hoisted(() => {
     identity: MockIdentity | undefined
     isActive: boolean
     rows: Record<string, ReadonlyArray<unknown>>
-    ready: Record<string, boolean>
+    loading: Record<string, boolean>
   } = {
     conn: null,
     identity: undefined,
@@ -39,10 +39,10 @@ const spacetimeMock = vi.hoisted(() => {
       tripMembers: [],
       users: [],
     },
-    ready: {
-      trips: true,
-      tripMembers: true,
-      users: true,
+    loading: {
+      trips: false,
+      tripMembers: false,
+      users: false,
     },
   }
 
@@ -58,10 +58,10 @@ const spacetimeMock = vi.hoisted(() => {
         tripMembers: [],
         users: [],
       }
-      state.ready = {
-        trips: true,
-        tripMembers: true,
-        users: true,
+      state.loading = {
+        trips: false,
+        tripMembers: false,
+        users: false,
       }
     },
   }
@@ -79,7 +79,7 @@ vi.mock("spacetimedb/react", () => ({
   }),
   useTable: (table: { accessorName: string }) => [
     spacetimeMock.state.rows[table.accessorName] ?? [],
-    spacetimeMock.state.ready[table.accessorName] ?? false,
+    spacetimeMock.state.loading[table.accessorName] ?? false,
   ],
 }))
 
@@ -131,6 +131,28 @@ describe("TripsOverview", () => {
 
     const submit = screen.getByRole("button", { name: /create trip/i })
     expect((submit as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  test("enables trip creation after subscribed tables finish loading", () => {
+    const identity = createIdentity("abc123")
+    spacetimeMock.state.conn = {
+      reducers: {
+        createTrip: vi.fn(),
+      },
+    }
+    spacetimeMock.state.identity = identity
+    spacetimeMock.state.isActive = true
+    spacetimeMock.state.rows.users = [{ identity }]
+    spacetimeMock.state.loading = {
+      trips: false,
+      tripMembers: false,
+      users: false,
+    }
+
+    render(<TripsOverview />)
+
+    const submit = screen.getByRole("button", { name: /create trip/i })
+    expect((submit as HTMLButtonElement).disabled).toBe(false)
   })
 
   test("keeps the draft until createTrip resolves successfully", async () => {

@@ -14,9 +14,9 @@ import { tables } from "@/module_bindings"
 export function TripsOverview() {
   const spacetime = useSpacetimeDB()
   const conn = spacetime.getConnection() as DbConnection | null
-  const [trips, tripsReady] = useTable(tables.trips)
-  const [memberships, membershipsReady] = useTable(tables.tripMembers)
-  const [users, usersReady] = useTable(tables.users)
+  const [trips, tripsLoading] = useTable(tables.trips)
+  const [memberships, membershipsLoading] = useTable(tables.tripMembers)
+  const [users, usersLoading] = useTable(tables.users)
   const identity = spacetime.identity
   const [createError, setCreateError] = useState<string | undefined>()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -31,23 +31,12 @@ export function TripsOverview() {
     conn &&
     spacetime.isActive &&
     identity &&
-    tripsReady &&
-    membershipsReady &&
-    usersReady &&
+    !tripsLoading &&
+    !membershipsLoading &&
+    !usersLoading &&
     hasUserProfile &&
     !isSubmitting
   )
-
-  console.log("canCreateTrip", canCreateTrip)
-  console.table({
-    conn,
-    spacetimeActive: spacetime.isActive,
-    identity,
-    tripsReady,
-    membershipsReady,
-    usersReady,
-    hasUserProfile,
-  })
 
   const visibleTrips = useMemo(() => {
     if (!identity) {
