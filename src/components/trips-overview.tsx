@@ -29,14 +29,25 @@ export function TripsOverview() {
 
   const canCreateTrip = Boolean(
     conn &&
-      spacetime.isActive &&
-      identity &&
-      tripsReady &&
-      membershipsReady &&
-      usersReady &&
-      hasUserProfile &&
-      !isSubmitting
+    spacetime.isActive &&
+    identity &&
+    tripsReady &&
+    membershipsReady &&
+    usersReady &&
+    hasUserProfile &&
+    !isSubmitting
   )
+
+  console.log("canCreateTrip", canCreateTrip)
+  console.table({
+    conn,
+    spacetimeActive: spacetime.isActive,
+    identity,
+    tripsReady,
+    membershipsReady,
+    usersReady,
+    hasUserProfile,
+  })
 
   const visibleTrips = useMemo(() => {
     if (!identity) {
