@@ -1,7 +1,8 @@
-import { SpacetimeDBProvider } from "spacetimedb/react"
-import { useEffect, useMemo, useState } from "react"
+import { SpacetimeDBProvider, useSpacetimeDB } from "spacetimedb/react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 
+import type { DbConnection } from "@/module_bindings"
 import { createSpacetimeConnectionBuilder } from "@/lib/spacetime"
 
 interface SpacetimeProviderProps {
@@ -35,7 +36,55 @@ export function SpacetimeProvider({ children, user }: SpacetimeProviderProps) {
 
   return (
     <SpacetimeDBProvider connectionBuilder={connectionBuilder}>
-      {children}
+      <SpacetimeProfileSync user={user}>{children}</SpacetimeProfileSync>
     </SpacetimeDBProvider>
   )
+}
+
+function SpacetimeProfileSync({ children, user }: SpacetimeProviderProps) {
+  const spacetime = useSpacetimeDB()
+  const conn = spacetime.getConnection() as DbConnection | null
+  const lastSyncedKey = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!spacetime.isActive || !spacetime.identity || !conn) {
+      return
+    }
+
+    const syncKey = [
+      spacetime.identity.toHexString(),
+      user.id,
+      user.name ?? "",
+      user.email,
+      user.image ?? "",
+    ].join(":")
+
+    if (lastSyncedKey.current === syncKey) {
+      return
+    }
+
+    lastSyncedKey.current = syncKey
+
+    void conn.reducers
+      .ensureUserProfile({
+        authUserId: user.id,
+        displayName: user.name || user.email,
+        email: user.email,
+        imageUrl: user.image ?? undefined,
+      })
+      .catch((error) => {
+        lastSyncedKey.current = undefined
+        console.error("Failed to sync SpacetimeDB user profile", error)
+      })
+  }, [
+    conn,
+    spacetime.identity,
+    spacetime.isActive,
+    user.email,
+    user.id,
+    user.image,
+    user.name,
+  ])
+
+  return children
 }
