@@ -19,7 +19,7 @@ const users = table(
   { public: true },
   {
     identity: t.identity().primaryKey(),
-    authUserId: t.string().unique(),
+    authUserId: t.string(),
     displayName: t.string(),
     email: t.string().optional(),
     imageUrl: t.string().optional(),

@@ -728,6 +728,9 @@ BETTER_AUTH_URL=http://localhost:3000
 BETTER_AUTH_SECRET=<any 32+ char hex string>
 ```
 
+The `file:local.db` URL and `local-dev-token` are local-only. Vercel
+production must use a persistent Turso/libSQL database URL and real auth token.
+
 ### SpacetimeDB (external)
 
 SpacetimeDB is a hosted service (MainCloud). The app connects to `free-roam-97kss` on `maincloud.spacetimedb.com` via WebSocket. Trip/activity CRUD depends on SpacetimeDB reducers being published. Without `spacetime login`, the SpacetimeDB connection will fail — auth and the UI still work, but trip data cannot be persisted.

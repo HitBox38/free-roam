@@ -222,15 +222,11 @@ const tablesSchema = __schema({
   users: __table({
     name: 'users',
     indexes: [
-      { accessor: 'authUserId', name: 'users_auth_user_id_idx_btree', algorithm: 'btree', columns: [
-        'authUserId',
-      ] },
       { accessor: 'identity', name: 'users_identity_idx_btree', algorithm: 'btree', columns: [
         'identity',
       ] },
     ],
     constraints: [
-      { name: 'users_auth_user_id_key', constraint: 'unique', columns: ['authUserId'] },
       { name: 'users_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, UsersRow),
