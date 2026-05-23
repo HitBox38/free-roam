@@ -31,9 +31,6 @@ export function TripsOverview() {
     conn &&
     spacetime.isActive &&
     identity &&
-    !tripsLoading &&
-    !membershipsLoading &&
-    !usersLoading &&
     hasUserProfile &&
     !isSubmitting
   )
@@ -49,15 +46,6 @@ export function TripsOverview() {
     }
     if (!identity) {
       blockers.push("missing_identity")
-    }
-    if (tripsLoading) {
-      blockers.push("trips_loading")
-    }
-    if (membershipsLoading) {
-      blockers.push("memberships_loading")
-    }
-    if (usersLoading) {
-      blockers.push("users_loading")
     }
     if (!hasUserProfile) {
       blockers.push("missing_user_profile")

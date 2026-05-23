@@ -133,7 +133,7 @@ describe("TripsOverview", () => {
     expect((submit as HTMLButtonElement).disabled).toBe(true)
   })
 
-  test("enables trip creation after subscribed tables finish loading", () => {
+  test("enables trip creation when the user profile is present even if table loading flags linger", () => {
     const identity = createIdentity("abc123")
     spacetimeMock.state.conn = {
       reducers: {
@@ -145,8 +145,8 @@ describe("TripsOverview", () => {
     spacetimeMock.state.rows.users = [{ identity }]
     spacetimeMock.state.loading = {
       trips: false,
-      tripMembers: false,
-      users: false,
+      tripMembers: true,
+      users: true,
     }
 
     render(<TripsOverview />)
