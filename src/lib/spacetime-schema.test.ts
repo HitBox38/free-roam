@@ -23,4 +23,15 @@ describe("SpacetimeDB user schema", () => {
       /constraint: 'unique', columns: \['authUserId'\]/
     )
   })
+
+  test("shows trip rows to every visible trip member", () => {
+    const moduleSource = readFileSync(
+      new URL("../../spacetimedb/spacetimedb/src/index.ts", import.meta.url),
+      "utf8"
+    )
+
+    expect(moduleSource).toContain(
+      "SELECT trips.* FROM trips JOIN trip_members ON trips.trip_id = trip_members.trip_id WHERE trip_members.identity = :sender"
+    )
+  })
 })
