@@ -3,3 +3,6 @@ pnpm-lock.yaml
 yarn.lock
 bun.lock
 bun.lockb
+.next/
+node_modules/
+apps/web/src/module_bindings/

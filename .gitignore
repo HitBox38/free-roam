@@ -13,3 +13,15 @@ count.txt
 __unconfig*
 todos.json
 local.db
+.next/
+*.tsbuildinfo
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.uv-cache/
+.tools/
+.env.*
+!.env.example
+local.db-*
